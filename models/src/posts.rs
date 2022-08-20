@@ -8,10 +8,13 @@ use time::OffsetDateTime;
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Post {
     /// A globally unique ID that identifies the post.
-    pub id: i32,
+    pub id: i64,
 
     /// The post's title.
     pub title: String,
+
+    /// The post's slug.
+    pub slug: String,
 
     /// The post's author.
     pub author: String,
@@ -47,4 +50,20 @@ impl Post {
     pub fn update_time(&self) -> OffsetDateTime {
         OffsetDateTime::from_unix_timestamp(self.update_timestamp).unwrap()
     }
+}
+
+/// A resource object that is attached to a post.
+#[derive(Clone, Debug)]
+pub struct PostResource {
+    /// ID of the associated post.
+    pub post_id: i64,
+
+    /// Name of the resource.
+    pub name: String,
+
+    /// MIME type of the resource.
+    pub ty: String,
+
+    /// Data of the resource.
+    pub data: Vec<u8>,
 }
