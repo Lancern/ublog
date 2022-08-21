@@ -89,3 +89,104 @@ impl Model for Resource {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn init_db_connection() -> RwLock<Connection> {
+        let conn = Connection::open_in_memory().unwrap();
+        Resource::init_db_schema(&conn).unwrap();
+        RwLock::new(conn)
+    }
+
+    #[test]
+    fn test_insert_resource_basic() {
+        let conn = init_db_connection();
+
+        let mut res = Resource {
+            name: String::from("res"),
+            ty: String::from("text/html"),
+            data: vec![0, 1, 2, 3],
+        };
+        res.insert_into(&conn).unwrap();
+    }
+
+    #[test]
+    fn test_insert_resource_name_conflict() {
+        let conn = init_db_connection();
+
+        let mut res = Resource {
+            name: String::from("res"),
+            ty: String::from("text/html"),
+            data: vec![0, 1, 2, 3],
+        };
+        res.insert_into(&conn).unwrap();
+
+        res = Resource {
+            name: String::from("res"),
+            ty: String::from("text/css"),
+            data: vec![1, 2, 3, 4],
+        };
+        let insert_err = res.insert_into(&conn).unwrap_err();
+        let insert_sqlite_err_code = insert_err.sqlite_error_code().unwrap();
+        assert_eq!(
+            insert_sqlite_err_code,
+            rusqlite::ErrorCode::ConstraintViolation
+        );
+    }
+
+    #[test]
+    fn test_select_basic() {
+        let conn = init_db_connection();
+
+        let mut res = Resource {
+            name: String::from("res"),
+            ty: String::from("text/html"),
+            data: vec![0, 1, 2, 3],
+        };
+        res.insert_into(&conn).unwrap();
+
+        let selected_res = Resource::select_one_from(&conn, "res").unwrap();
+        assert_eq!(res.name, selected_res.name);
+        assert_eq!(res.ty, selected_res.ty);
+        assert_eq!(res.data, selected_res.data);
+    }
+
+    #[test]
+    fn test_select_not_exist() {
+        let conn = init_db_connection();
+
+        let select_err = Resource::select_one_from(&conn, "res").unwrap_err();
+        match select_err {
+            rusqlite::Error::QueryReturnedNoRows => {}
+            _ => panic!("Unexpected error returned"),
+        }
+    }
+
+    #[test]
+    fn test_delete_basic() {
+        let conn = init_db_connection();
+
+        let mut res = Resource {
+            name: String::from("res"),
+            ty: String::from("text/html"),
+            data: vec![0, 1, 2, 3],
+        };
+        res.insert_into(&conn).unwrap();
+
+        Resource::delete_from(&conn, "res").unwrap();
+
+        let select_err = Resource::select_one_from(&conn, "res").unwrap_err();
+        match select_err {
+            rusqlite::Error::QueryReturnedNoRows => {}
+            _ => panic!("Unexpected error returned"),
+        }
+    }
+
+    #[test]
+    fn test_delete_not_exist() {
+        let conn = init_db_connection();
+        Resource::delete_from(&conn, "res").unwrap();
+    }
+}

@@ -172,6 +172,7 @@ impl Database {
     }
 }
 
+/// Pagination parameters.
 #[derive(Clone, Copy, Debug)]
 pub struct Pagination {
     page: usize,
@@ -179,6 +180,9 @@ pub struct Pagination {
 }
 
 impl Pagination {
+    /// Create a new [`Pagination`] object.
+    ///
+    /// `page` gives the page number starting from 1. `page_size` gives the number of items displayed on each page.
     pub fn from_page_and_size(page: usize, page_size: usize) -> Self {
         assert!(page > 0);
         assert!(page_size > 0);
