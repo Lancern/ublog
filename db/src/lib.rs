@@ -71,13 +71,19 @@ impl Database {
         self.insert_one(post)
     }
 
-    /// Update the given post object with the fields selected by the specified mask.
-    pub fn update_post(
+    /// Update the post object with the given slug by the given post object with the fields selected by the specified
+    /// mask.
+    pub fn update_post<T>(
         &self,
         post: &mut Post,
+        slug: T,
         mask: &PostUpdateMask,
-    ) -> Result<(), rusqlite::Error> {
-        self.update_one(post, mask)
+    ) -> Result<(), rusqlite::Error>
+    where
+        T: AsRef<str>,
+    {
+        let slug = slug.as_ref();
+        self.update_one(post, slug, mask)
     }
 
     /// Increase the views count of the specified post.
@@ -156,11 +162,17 @@ impl Database {
         model.insert_into(&self.conn)
     }
 
-    fn update_one<M>(&self, model: &mut M, mask: &M::UpdateMask) -> Result<(), rusqlite::Error>
+    fn update_one<M, K>(
+        &self,
+        model: &mut M,
+        key: &K,
+        mask: &M::UpdateMask,
+    ) -> Result<(), rusqlite::Error>
     where
         M: Model,
+        K: ?Sized + Borrow<M::SelectKey>,
     {
-        model.update_into(&self.conn, mask)
+        model.update_into(&self.conn, key, mask)
     }
 
     fn delete_one<M, K>(&self, key: &K) -> Result<(), rusqlite::Error>

@@ -54,6 +54,7 @@ impl Post {
 
 /// A resource object that is attached to a post.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct PostResource {
     /// ID of the associated post.
     pub post_id: i64,

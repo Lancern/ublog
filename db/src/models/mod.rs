@@ -25,11 +25,14 @@ pub(crate) trait Model: Sized {
 
     fn insert_into(&mut self, conn: &RwLock<Connection>) -> Result<(), rusqlite::Error>;
 
-    fn update_into(
+    fn update_into<K>(
         &mut self,
         conn: &RwLock<Connection>,
+        key: &K,
         mask: &Self::UpdateMask,
-    ) -> Result<(), rusqlite::Error>;
+    ) -> Result<(), rusqlite::Error>
+    where
+        K: ?Sized + Borrow<Self::SelectKey>;
 
     fn delete_from<K>(conn: &RwLock<Connection>, key: &K) -> Result<(), rusqlite::Error>
     where

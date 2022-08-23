@@ -69,7 +69,7 @@ impl Model for Post {
         pagination: &Pagination,
     ) -> Result<Vec<Self>, rusqlite::Error> {
         const SELECT_SQL: &str = r#"
-            SELECT id, title, slug, author, create_timestamp, update_timestamp, category, views, content
+            SELECT id, title, slug, author, create_timestamp, update_timestamp, category, views
             FROM posts
             ORDER BY create_timestamp DESC
             LIMIT ? OFFSET ?;
@@ -113,6 +113,7 @@ impl Model for Post {
         self.id = trans.last_insert_rowid();
         self.create_timestamp = create_timestamp;
         self.update_timestamp = update_timestamp;
+        self.views = 0;
 
         // Insert tags into the database.
         if !self.tags.is_empty() {
@@ -124,43 +125,51 @@ impl Model for Post {
         Ok(())
     }
 
-    fn update_into(
+    fn update_into<K>(
         &mut self,
         conn: &RwLock<Connection>,
+        key: &K,
         mask: &Self::UpdateMask,
-    ) -> Result<(), rusqlite::Error> {
+    ) -> Result<(), rusqlite::Error>
+    where
+        K: ?Sized + Borrow<Self::SelectKey>,
+    {
         if mask.is_empty() {
             return Ok(());
         }
 
+        let slug: &str = key.borrow();
         let update_timestamp = now_utc_unix_timestamp();
 
-        let mut column_names: Vec<&'static str> = vec!["update_timestamp"];
-        let mut column_parameters: Vec<&'static str> = vec!["?"];
-        let mut column_values: Vec<&dyn ToSql> = vec![&update_timestamp];
+        let mut update_sql_setters = Vec::new();
+        let mut update_params: Vec<&dyn ToSql> = Vec::new();
 
         for field in &*POST_FIELDS {
             if mask.contains(field.mask) {
-                column_names.push(field.name);
-                column_parameters.push("?");
-                column_values.push((field.field_getter)(self));
+                update_sql_setters.push(format!("{} = ?", field.name));
+                update_params.push((field.field_getter)(self));
             }
         }
 
+        update_params.push(&slug);
+
         let update_post_sql = format!(
             r#"
-            UPDATE posts ({})
-            VALUES ({})
-        "#,
-            column_names.join(","),
-            column_parameters.join(",")
+                UPDATE posts
+                SET {}
+                WHERE slug == ?;
+            "#,
+            update_sql_setters.join(",")
         );
 
         let mut conn = conn.write().unwrap();
         let trans = conn.transaction()?;
 
         // Update the post object itself.
-        trans.execute(&update_post_sql, column_values.as_slice())?;
+        let rows_updated = trans.execute(&update_post_sql, update_params.as_slice())?;
+        if rows_updated == 0 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
 
         // Update the post's tags, if any.
         if mask.contains(PostUpdateMask::TAGS) {
@@ -211,6 +220,24 @@ impl Model for Post {
             views: row.get("views")?,
             content: row.get("content")?,
         })
+    }
+
+    fn from_rows(rows: Rows) -> Result<Vec<Self>, rusqlite::Error> {
+        rows.mapped(|row| {
+            Ok(Post {
+                id: row.get("id")?,
+                title: row.get("title")?,
+                slug: row.get("slug")?,
+                author: row.get("author")?,
+                create_timestamp: row.get("create_timestamp")?,
+                update_timestamp: row.get("update_timestamp")?,
+                category: row.get("category")?,
+                tags: Vec::new(),
+                views: row.get("views")?,
+                content: String::new(),
+            })
+        })
+        .collect()
     }
 }
 
@@ -295,11 +322,15 @@ impl Model for PostResource {
         Ok(())
     }
 
-    fn update_into(
+    fn update_into<K>(
         &mut self,
         _conn: &RwLock<Connection>,
+        _key: &K,
         _mask: &Self::UpdateMask,
-    ) -> Result<(), rusqlite::Error> {
+    ) -> Result<(), rusqlite::Error>
+    where
+        K: ?Sized + Borrow<Self::SelectKey>,
+    {
         panic!("Updating post resource object is not a supported operation.");
     }
 
@@ -369,6 +400,10 @@ fn insert_post_tags(
     post_id: i64,
     tags: &[String],
 ) -> Result<(), rusqlite::Error> {
+    if tags.is_empty() {
+        return Ok(());
+    }
+
     let column_parameters: Vec<&'static str> = vec!["(?1, ?)"; tags.len()];
 
     let mut param_values: Vec<&dyn ToSql> = vec![&post_id];
@@ -379,9 +414,9 @@ fn insert_post_tags(
 
     let insert_tags_sql = format!(
         r#"
-        INSERT INTO posts_tags (post_id, tag_name)
-        VALUES {}
-    "#,
+            INSERT INTO posts_tags (post_id, tag_name)
+            VALUES {};
+        "#,
         column_parameters.join(",")
     );
 
@@ -423,4 +458,256 @@ lazy_static! {
         make_post_field_descriptor!(PostUpdateMask::CATEGORY, category),
         make_post_field_descriptor!(PostUpdateMask::CONTENT, content),
     ];
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn init_db_connection() -> RwLock<Connection> {
+        let conn = Connection::open_in_memory().unwrap();
+        Post::init_db_schema(&conn).unwrap();
+        RwLock::new(conn)
+    }
+
+    #[test]
+    fn test_insert_post_basic() {
+        let conn = init_db_connection();
+
+        let mut post = Post {
+            id: 42,
+            title: String::from("title"),
+            slug: String::from("slug"),
+            author: String::from("msr"),
+            create_timestamp: 0,
+            update_timestamp: 0,
+            category: String::from("category"),
+            tags: Vec::new(),
+            views: 100,
+            content: String::from("hello"),
+        };
+        post.insert_into(&conn).unwrap();
+
+        assert_ne!(post.id, 42); // post.id should be updated to the ID of the post, which may not be 42.
+        assert_ne!(post.create_timestamp, 0);
+        assert_ne!(post.update_timestamp, 0);
+    }
+
+    #[test]
+    fn test_insert_post_conflict_slug() {
+        let conn = init_db_connection();
+
+        let mut post = Post {
+            id: 0,
+            title: String::from("title"),
+            slug: String::from("slug"),
+            author: String::from("msr"),
+            create_timestamp: 0,
+            update_timestamp: 0,
+            category: String::from("category"),
+            tags: Vec::new(),
+            views: 100,
+            content: String::from("hello"),
+        };
+        post.insert_into(&conn).unwrap();
+
+        let insert_err = post.insert_into(&conn).unwrap_err();
+        assert_eq!(
+            insert_err.sqlite_error_code().unwrap(),
+            rusqlite::ErrorCode::ConstraintViolation
+        );
+    }
+
+    #[test]
+    fn test_select_one_post_basic() {
+        let conn = init_db_connection();
+
+        let mut post = Post {
+            id: 0,
+            title: String::from("title"),
+            slug: String::from("slug"),
+            author: String::from("msr"),
+            create_timestamp: 0,
+            update_timestamp: 0,
+            category: String::from("category"),
+            tags: Vec::new(),
+            views: 0,
+            content: String::from("hello"),
+        };
+        post.insert_into(&conn).unwrap();
+
+        let selected_post = Post::select_one_from(&conn, "slug").unwrap();
+        assert_eq!(post.id, selected_post.id);
+        assert_eq!(post.title, selected_post.title);
+        assert_eq!(post.slug, selected_post.slug);
+        assert_eq!(post.author, selected_post.author);
+        assert_eq!(post.create_timestamp, selected_post.create_timestamp);
+        assert_eq!(post.update_timestamp, selected_post.update_timestamp);
+        assert_eq!(post.category, selected_post.category);
+        assert_eq!(post.tags, selected_post.tags);
+        assert_eq!(post.views, selected_post.views);
+        assert_eq!(post.content, selected_post.content);
+    }
+
+    #[test]
+    fn test_select_one_post_not_exist() {
+        let conn = init_db_connection();
+
+        let select_err = Post::select_one_from(&conn, "slug").unwrap_err();
+        match select_err {
+            rusqlite::Error::QueryReturnedNoRows => {}
+            e => {
+                panic!("Unexpected error returned: {}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_select_many_basic() {
+        let conn = init_db_connection();
+
+        let mut post1 = Post {
+            id: 0,
+            title: String::from("title"),
+            slug: String::from("slug1"),
+            author: String::from("msr"),
+            create_timestamp: 30,
+            update_timestamp: 30,
+            category: String::from("category"),
+            tags: Vec::new(),
+            views: 0,
+            content: String::from("hello"),
+        };
+        post1.insert_into(&conn).unwrap();
+
+        let mut post2 = Post {
+            slug: String::from("slug2"),
+            create_timestamp: 20,
+            update_timestamp: 20,
+            ..post1.clone()
+        };
+        post2.insert_into(&conn).unwrap();
+
+        let mut post3 = Post {
+            slug: String::from("slug3"),
+            create_timestamp: 10,
+            update_timestamp: 10,
+            ..post1.clone()
+        };
+        post3.insert_into(&conn).unwrap();
+
+        let selected_posts =
+            Post::select_many_from(&conn, &Pagination::from_page_and_size(2, 1)).unwrap();
+        assert_eq!(selected_posts.len(), 1);
+
+        let selected_post = &selected_posts[0];
+        assert_eq!(post2.id, selected_post.id);
+        assert_eq!(post2.title, selected_post.title);
+        assert_eq!(post2.slug, selected_post.slug);
+        assert_eq!(post2.author, selected_post.author);
+        assert_eq!(post2.create_timestamp, selected_post.create_timestamp);
+        assert_eq!(post2.update_timestamp, selected_post.update_timestamp);
+        assert_eq!(post2.category, selected_post.category);
+        assert_eq!(post2.tags, selected_post.tags);
+        assert_eq!(post2.views, selected_post.views);
+        assert_eq!("", selected_post.content);
+    }
+
+    #[test]
+    fn test_update_basic() {
+        let conn = init_db_connection();
+
+        let mut post = Post {
+            id: 0,
+            title: String::from("title"),
+            slug: String::from("slug"),
+            author: String::from("msr"),
+            create_timestamp: 30,
+            update_timestamp: 30,
+            category: String::from("category"),
+            tags: Vec::new(),
+            views: 0,
+            content: String::from("hello"),
+        };
+        post.insert_into(&conn).unwrap();
+
+        let mut update_post = Post {
+            id: 0,
+            title: String::from("title2"),
+            slug: String::from("slug2"),
+            author: String::from("msr2"),
+            create_timestamp: 30,
+            update_timestamp: 30,
+            category: String::from("category2"),
+            tags: Vec::new(),
+            views: 0,
+            content: String::from("hello2"),
+        };
+        update_post
+            .update_into(&conn, "slug", &PostUpdateMask::all())
+            .unwrap();
+    }
+
+    #[test]
+    fn test_update_not_exist() {
+        let conn = init_db_connection();
+
+        let mut post = Post {
+            id: 0,
+            title: String::from("title"),
+            slug: String::from("slug"),
+            author: String::from("msr"),
+            create_timestamp: 30,
+            update_timestamp: 30,
+            category: String::from("category"),
+            tags: Vec::new(),
+            views: 0,
+            content: String::from("hello"),
+        };
+        let update_err = post
+            .update_into(&conn, "foo", &PostUpdateMask::all())
+            .unwrap_err();
+
+        match update_err {
+            rusqlite::Error::QueryReturnedNoRows => {}
+            e => {
+                panic!("Unexpected error returned: {}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_delete_basic() {
+        let conn = init_db_connection();
+
+        let mut post = Post {
+            id: 0,
+            title: String::from("title"),
+            slug: String::from("slug"),
+            author: String::from("msr"),
+            create_timestamp: 0,
+            update_timestamp: 0,
+            category: String::from("category"),
+            tags: Vec::new(),
+            views: 0,
+            content: String::from("hello"),
+        };
+        post.insert_into(&conn).unwrap();
+
+        Post::delete_from(&conn, "slug").unwrap();
+
+        let select_err = Post::select_one_from(&conn, "slug").unwrap_err();
+        match select_err {
+            rusqlite::Error::QueryReturnedNoRows => {}
+            e => {
+                panic!("Unexpected error returned: {}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_delete_not_exist() {
+        let conn = init_db_connection();
+        Post::delete_from(&conn, "slug").unwrap();
+    }
 }

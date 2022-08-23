@@ -56,11 +56,15 @@ impl Model for Resource {
         Ok(())
     }
 
-    fn update_into(
+    fn update_into<K>(
         &mut self,
         _conn: &RwLock<Connection>,
+        _key: &K,
         _mask: &Self::UpdateMask,
-    ) -> Result<(), rusqlite::Error> {
+    ) -> Result<(), rusqlite::Error>
+    where
+        K: ?Sized + Borrow<Self::SelectKey>,
+    {
         panic!("Updating resource object into database is not a supported operation");
     }
 
