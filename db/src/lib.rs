@@ -86,9 +86,13 @@ impl Database {
         self.update_one(post, slug, mask)
     }
 
-    /// Increase the views count of the specified post.
-    pub fn increase_post_views(&self, post: &mut Post) -> Result<(), rusqlite::Error> {
-        post.increase_views(&self.conn)
+    /// Set the views count of the specified post.
+    pub fn update_post_views<T>(&self, post_slug: T, views: u64) -> Result<(), rusqlite::Error>
+    where
+        T: AsRef<str>,
+    {
+        let slug = post_slug.as_ref();
+        Post::update_views_into(&self.conn, slug, views)
     }
 
     /// Delete the post object with the given slug.

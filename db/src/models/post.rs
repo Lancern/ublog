@@ -254,32 +254,39 @@ impl Model for Post {
     }
 }
 
-pub(crate) trait PostModelExt {
-    fn increase_views(&mut self, conn: &RwLock<Connection>) -> Result<(), rusqlite::Error>;
+pub(crate) trait PostModelExt: Model {
+    fn update_views_into<K>(
+        conn: &RwLock<Connection>,
+        key: &K,
+        views: u64,
+    ) -> Result<(), rusqlite::Error>
+    where
+        K: ?Sized + Borrow<<Self as Model>::SelectKey>;
 }
 
 impl PostModelExt for Post {
-    fn increase_views(&mut self, conn: &RwLock<Connection>) -> Result<(), rusqlite::Error> {
-        let mut conn = conn.write().unwrap();
+    fn update_views_into<K>(
+        conn: &RwLock<Connection>,
+        key: &K,
+        views: u64,
+    ) -> Result<(), rusqlite::Error>
+    where
+        K: ?Sized + Borrow<<Self as Model>::SelectKey>,
+    {
+        let slug: &str = key.borrow();
 
-        let trans = conn.transaction()?;
-
-        // Update the latest views count.
-        const SELECT_VIEWS_SQL: &str = r#"
-            SELECT views FROM posts
-            WHERE id == ?;
-        "#;
-        let old_views: u64 = trans.query_row(SELECT_VIEWS_SQL, (self.id,), |row| row.get(0))?;
-        self.views = old_views + 1;
-
-        const UPDATE_VIEWS_SQL: &str = r#"
+        const UPDATE_SQL: &str = r#"
             UPDATE posts
             SET views = ?
-            WHERE id == ?;
+            WHERE slug == ?;
         "#;
-        trans.execute(UPDATE_VIEWS_SQL, (self.views, self.id))?;
 
-        trans.commit()?;
+        let conn = conn.read().unwrap();
+        let updated_rows = conn.execute(UPDATE_SQL, (views, slug))?;
+        if updated_rows == 0 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
+
         Ok(())
     }
 }
@@ -776,5 +783,38 @@ mod tests {
     fn test_delete_not_exist() {
         let conn = init_db_connection();
         Post::delete_from(&conn, "slug").unwrap();
+    }
+
+    #[test]
+    fn test_update_views_count() {
+        let conn = init_db_connection();
+
+        let mut post = Post {
+            id: 0,
+            title: String::from("title"),
+            slug: String::from("slug"),
+            author: String::from("msr"),
+            create_timestamp: 0,
+            update_timestamp: 0,
+            category: String::from("category"),
+            tags: Vec::new(),
+            views: 0,
+            content: String::from("hello"),
+        };
+        post.insert_into(&conn).unwrap();
+
+        Post::update_views_into(&conn, "slug", 100).unwrap();
+
+        let conn = conn.read().unwrap();
+
+        const SELECT_VIEWS_SQL: &str = r#"
+            SELECT views FROM posts
+            WHERE slug == ?;
+        "#;
+        let updated_views: u64 = conn
+            .query_row(SELECT_VIEWS_SQL, ("slug",), |row| row.get(0))
+            .unwrap();
+
+        assert_eq!(updated_views, 100);
     }
 }
