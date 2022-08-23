@@ -1,10 +1,6 @@
-[workspace]
-members = [".", "db", "markdown", "models", "notion"]
-
 [package]
-name = "ublog"
+name = "ublog-notion"
 version = "0.1.0"
-authors = ["Sirui Mu <msrlancern@gmail.com>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
