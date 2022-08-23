@@ -82,7 +82,13 @@ impl Model for Post {
 
         let mut query_stmt = conn.prepare_cached(SELECT_SQL).unwrap();
         let post_rows = query_stmt.query((limit, offset))?;
-        Self::from_rows(post_rows)
+        let mut posts = Self::from_rows(post_rows)?;
+
+        for p in &mut posts {
+            select_tags_for_post(&*conn, p)?;
+        }
+
+        Ok(posts)
     }
 
     fn insert_into(&mut self, conn: &RwLock<Connection>) -> Result<(), rusqlite::Error> {
@@ -165,6 +171,13 @@ impl Model for Post {
         let mut conn = conn.write().unwrap();
         let trans = conn.transaction()?;
 
+        // Select the post ID, which may be used later.
+        const SELECT_POST_ID_SQL: &str = r#"
+            SELECT id FROM posts
+            WHERE slug == ?;
+        "#;
+        let post_id: i64 = trans.query_row(SELECT_POST_ID_SQL, (slug,), |row| row.get(0))?;
+
         // Update the post object itself.
         let rows_updated = trans.execute(&update_post_sql, update_params.as_slice())?;
         if rows_updated == 0 {
@@ -178,10 +191,10 @@ impl Model for Post {
                 DELETE FROM posts_tags
                 WHERE post_id == ?;
             "#;
-            trans.execute(DELETE_TAGS_SQL, (self.id,))?;
+            trans.execute(DELETE_TAGS_SQL, (post_id,))?;
 
             // Insert all new tags.
-            insert_post_tags(&trans, self.id, &self.tags)?;
+            insert_post_tags(&trans, post_id, &self.tags)?;
         }
 
         trans.commit()?;
@@ -463,11 +476,28 @@ lazy_static! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     fn init_db_connection() -> RwLock<Connection> {
         let conn = Connection::open_in_memory().unwrap();
         Post::init_db_schema(&conn).unwrap();
         RwLock::new(conn)
+    }
+
+    fn select_tag_names(conn: &RwLock<Connection>, post_id: i64) -> Vec<String> {
+        const SELECT_SQL: &str = r#"
+            SELECT tag_name FROM posts_tags
+            WHERE post_id == ?;
+        "#;
+
+        let conn = conn.read().unwrap();
+        let mut select_sql_stmt = conn.prepare(SELECT_SQL).unwrap();
+        select_sql_stmt
+            .query((post_id,))
+            .unwrap()
+            .mapped(|row| row.get(0))
+            .collect::<Result<_, rusqlite::Error>>()
+            .unwrap()
     }
 
     #[test]
@@ -519,6 +549,31 @@ mod tests {
     }
 
     #[test]
+    fn test_insert_post_tags() {
+        let conn = init_db_connection();
+
+        let mut post = Post {
+            id: 0,
+            title: String::from("title"),
+            slug: String::from("slug"),
+            author: String::from("msr"),
+            create_timestamp: 0,
+            update_timestamp: 0,
+            category: String::from("category"),
+            tags: vec![String::from("tag1"), String::from("tag2")],
+            views: 100,
+            content: String::from("hello"),
+        };
+        post.insert_into(&conn).unwrap();
+
+        let tags: HashSet<_> = select_tag_names(&conn, post.id).into_iter().collect();
+        let expected_tags: HashSet<_> = vec![String::from("tag1"), String::from("tag2")]
+            .into_iter()
+            .collect();
+        assert_eq!(tags, expected_tags);
+    }
+
+    #[test]
     fn test_select_one_post_basic() {
         let conn = init_db_connection();
 
@@ -530,7 +585,7 @@ mod tests {
             create_timestamp: 0,
             update_timestamp: 0,
             category: String::from("category"),
-            tags: Vec::new(),
+            tags: vec![String::from("tag1"), String::from("tag2")],
             views: 0,
             content: String::from("hello"),
         };
@@ -574,7 +629,7 @@ mod tests {
             create_timestamp: 30,
             update_timestamp: 30,
             category: String::from("category"),
-            tags: Vec::new(),
+            tags: vec![String::from("tag1"), String::from("tag2")],
             views: 0,
             content: String::from("hello"),
         };
@@ -625,7 +680,7 @@ mod tests {
             create_timestamp: 30,
             update_timestamp: 30,
             category: String::from("category"),
-            tags: Vec::new(),
+            tags: vec![String::from("tag1"), String::from("tag2")],
             views: 0,
             content: String::from("hello"),
         };
@@ -639,13 +694,25 @@ mod tests {
             create_timestamp: 30,
             update_timestamp: 30,
             category: String::from("category2"),
-            tags: Vec::new(),
+            tags: vec![String::from("tag1"), String::from("tag3")],
             views: 0,
             content: String::from("hello2"),
         };
         update_post
             .update_into(&conn, "slug", &PostUpdateMask::all())
             .unwrap();
+
+        let selected_post = Post::select_one_from(&conn, "slug2").unwrap();
+        assert_eq!(selected_post.title, "title2");
+        assert_eq!(selected_post.author, "msr2");
+        assert_eq!(selected_post.category, "category2");
+        assert_eq!(selected_post.content, "hello2");
+
+        let selected_post_tags: HashSet<_> = selected_post.tags.into_iter().collect();
+        let expected_post_tags: HashSet<_> = vec![String::from("tag1"), String::from("tag3")]
+            .into_iter()
+            .collect();
+        assert_eq!(selected_post_tags, expected_post_tags);
     }
 
     #[test]
