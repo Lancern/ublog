@@ -68,6 +68,7 @@ pub struct RichText {
     pub plain_text: String,
     #[serde(default)]
     pub href: Option<String>,
+    pub annotations: RichTextAnnotations,
     #[serde(flatten)]
     pub variants: RichTextVariants,
 }
@@ -142,12 +143,6 @@ pub enum BlockVariants {
     #[serde(rename = "numbered_list_item")]
     NumberedListItem(ListItemBlock),
 
-    #[serde(rename = "to_do")]
-    Todo(TodoBlock),
-
-    #[serde(rename = "toggle")]
-    Toggle(ToggleBlock),
-
     #[serde(rename = "code")]
     Code(CodeBlock),
 
@@ -194,19 +189,6 @@ pub struct QuoteBlock {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListItemBlock {
-    pub rich_text: Vec<RichText>,
-    pub color: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct TodoBlock {
-    pub rich_text: Vec<RichText>,
-    pub checked: bool,
-    pub color: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ToggleBlock {
     pub rich_text: Vec<RichText>,
     pub color: String,
 }
