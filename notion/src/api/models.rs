@@ -3,9 +3,34 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Database {
+    pub id: String,
+    pub created_time: String,
+    pub created_by: User,
+    pub last_edited_time: String,
+    pub last_edited_by: User,
+    pub title: Vec<RichText>,
+    pub description: Vec<RichText>,
+    pub icon: FileOrEmoji,
+    pub cover: File,
+    pub url: String,
+    pub properties: HashMap<String, Property>,
+    pub archived: bool,
+    pub is_inline: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Property {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub ty: String,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Page {
     pub id: String,
-    pub create_time: String,
+    pub created_time: String,
     pub created_by: User,
     pub last_edited_time: String,
     pub last_edited_by: User,

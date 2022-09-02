@@ -19,6 +19,20 @@ pub fn render_rich_text(rt: &RichText) -> HtmlNode {
     HtmlNode::Element(node)
 }
 
+/// Render the given rich text into plain text, discarding any style settings.
+pub fn render_rich_texts_to_plain_text<'a, I>(rt: I) -> String
+where
+    I: IntoIterator<Item = &'a RichText>,
+{
+    let mut rendered = String::new();
+
+    for item in rt {
+        rendered.push_str(&item.plain_text);
+    }
+
+    rendered
+}
+
 fn render_text_rich_text(rt: &TextRichText) -> HtmlElement {
     create_inline_element("span", rt.content.clone())
 }

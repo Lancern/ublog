@@ -11,7 +11,7 @@ use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
 use crate::api::block_tree::RawBlockTree;
-use crate::api::models::{Block, Page};
+use crate::api::models::{Block, Database, Page};
 use crate::api::requests::NotionRequestExecutor;
 
 /// Result type of Notion APIs.
@@ -34,6 +34,18 @@ impl NotionApi {
         Self {
             exec: NotionRequestExecutor::new(token),
         }
+    }
+
+    /// Get Notion database schema.
+    pub async fn get_database<T>(&self, database_id: T) -> NotionApiResult<Database>
+    where
+        T: AsRef<str>,
+    {
+        let database_id = database_id.as_ref();
+        let url = format!("{}/v1/databases/{}", Self::BASE_URL, database_id);
+        let request = self.exec.build_notion_request(Method::GET, url).build()?;
+        let db = self.exec.execute(request).await?.json().await?;
+        Ok(db)
     }
 
     /// Query Notion database entries.
@@ -116,6 +128,23 @@ impl NotionApi {
         self.get_block_tree_impl(root_block).await
     }
 
+    /// Get a list of raw block trees that represents the whole contents of the specified page.
+    pub async fn get_page_content<T>(&self, page_id: T) -> NotionApiResult<Vec<RawBlockTree>>
+    where
+        T: AsRef<str>,
+    {
+        let page_id = page_id.as_ref();
+
+        let direct_blocks = self.get_block_children(page_id).await?;
+        let get_tree_futures = direct_blocks
+            .into_iter()
+            .map(|blk| self.get_block_tree_impl(blk));
+        futures::future::join_all(get_tree_futures)
+            .await
+            .into_iter()
+            .collect::<Result<_, _>>()
+    }
+
     async fn get_paginated_list<T, S, F>(&self, mut fetch_page: S) -> NotionApiResult<Vec<T>>
     where
         S: FnMut(NotionPagination) -> F,
@@ -147,11 +176,16 @@ impl NotionApi {
     async fn get_block_tree_impl(&self, root_block: Block) -> NotionApiResult<RawBlockTree> {
         let child_blocks = self.get_block_children(&root_block.id).await?;
 
-        let mut tree = RawBlockTree::new(root_block);
+        let mut get_child_tree_futures = Vec::with_capacity(child_blocks.len());
         for child_blk in child_blocks {
-            let child_tree = self.get_block_tree_impl(child_blk).await?;
-            tree.children.push(child_tree);
+            get_child_tree_futures.push(self.get_block_tree_impl(child_blk));
         }
+
+        let mut tree = RawBlockTree::new(root_block);
+        tree.children = futures::future::join_all(get_child_tree_futures)
+            .await
+            .into_iter()
+            .collect::<Result<_, _>>()?;
 
         Ok(tree)
     }
@@ -275,6 +309,22 @@ pub struct QueryDatabasePropertyFilter {
     /// Actual filter definitions corresponding to different types of properties.
     #[serde(flatten)]
     pub variant: QueryDatabasePropertyFilterVariants,
+}
+
+impl QueryDatabasePropertyFilter {
+    /// Create a new `QueryDatabasePropertyFilter` that selects database entries whose specified checkbox property is
+    /// checked.
+    pub fn checkbox_checked<T>(property_name: T) -> Self
+    where
+        T: Into<String>,
+    {
+        Self {
+            property: property_name.into(),
+            variant: QueryDatabasePropertyFilterVariants::Checkbox(
+                QueryDatabaseCheckboxFilter::Equals(true),
+            ),
+        }
+    }
 }
 
 /// Provide actual filter definitions corresponding to different types of properties.
