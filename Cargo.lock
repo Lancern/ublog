@@ -909,27 +909,19 @@ name = "ublog"
 version = "0.1.0"
 
 [[package]]
-name = "ublog-db"
+name = "ublog-data"
 version = "0.1.0"
 dependencies = [
  "bitflags",
  "lazy_static",
  "rusqlite",
+ "serde",
  "time",
- "ublog-models",
 ]
 
 [[package]]
 name = "ublog-markdown"
 version = "0.1.0"
-
-[[package]]
-name = "ublog-models"
-version = "0.1.0"
-dependencies = [
- "serde",
- "time",
-]
 
 [[package]]
 name = "ublog-notion"
@@ -943,7 +935,7 @@ dependencies = [
  "serde",
  "time",
  "tokio",
- "ublog-models",
+ "ublog-data",
 ]
 
 [[package]]

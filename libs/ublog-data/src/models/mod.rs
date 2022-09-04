@@ -6,7 +6,10 @@ use std::sync::RwLock;
 
 use rusqlite::{Connection, Row, Rows};
 
-use crate::Pagination;
+use crate::db::Pagination;
+
+pub use crate::models::post::{Post, PostResource};
+pub use crate::models::resource::Resource;
 
 pub(crate) trait Model: Sized {
     type SelectKey: ?Sized;

@@ -1,17 +1,13 @@
-pub mod masks;
-mod models;
-
 use std::borrow::Borrow;
 use std::path::Path;
 use std::sync::RwLock;
 
-use masks::PostUpdateMask;
+use bitflags::bitflags;
 use rusqlite::Connection;
-use ublog_models::posts::{Post, PostResource};
-use ublog_models::resource::Resource;
 
 use crate::models::post::PostModelExt;
 use crate::models::Model;
+use crate::models::{Post, PostResource, Resource};
 
 /// A database connection.
 #[derive(Debug)]
@@ -207,7 +203,30 @@ impl Pagination {
         Self { page, page_size }
     }
 
-    fn skip_count(&self) -> usize {
+    /// Get the page number. Page numbers start from 1.
+    pub fn page(&self) -> usize {
+        self.page
+    }
+
+    /// Get the number of items on each page.
+    pub fn page_size(&self) -> usize {
+        self.page_size
+    }
+
+    /// Get the number of items before the first element of the specified page.
+    pub fn skip_count(&self) -> usize {
         (self.page - 1) * self.page_size
+    }
+}
+
+bitflags! {
+    /// A bit mask that selects the fields of [`Post`] that will be updated to the database.
+    pub struct PostUpdateMask : u64 {
+        const TITLE    = 0x01;
+        const SLUG     = 0x02;
+        const AUTHOR   = 0x04;
+        const CATEGORY = 0x08;
+        const CONTENT  = 0x10;
+        const TAGS     = 0x20;
     }
 }

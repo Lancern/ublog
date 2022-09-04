@@ -3,7 +3,7 @@ pub mod schema;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-use ublog_models::posts::Post;
+use ublog_data::models::Post;
 
 use crate::api::{NotionApi, NotionApiError};
 

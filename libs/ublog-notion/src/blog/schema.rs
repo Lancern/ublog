@@ -1,6 +1,6 @@
 use time::format_description::well_known::Iso8601;
 use time::Date;
-use ublog_models::posts::Post;
+use ublog_data::models::Post;
 
 use crate::api::models::{Database, Page, PropertyValue};
 use crate::api::{

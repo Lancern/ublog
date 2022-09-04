@@ -3,11 +3,58 @@ use std::sync::RwLock;
 
 use lazy_static::lazy_static;
 use rusqlite::{Connection, Row, Rows, ToSql};
-use ublog_models::posts::{Post, PostResource};
+use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 
-use crate::masks::PostUpdateMask;
+use crate::db::{Pagination, PostUpdateMask};
+
 use crate::models::Model;
-use crate::Pagination;
+
+/// A blog post.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Post {
+    /// A globally unique ID that identifies the post.
+    pub id: i64,
+
+    /// The post's title.
+    pub title: String,
+
+    /// The post's slug.
+    pub slug: String,
+
+    /// The post's author.
+    pub author: String,
+
+    /// Unix timestamp of the post's creation time, in UTC time zone.
+    pub create_timestamp: i64,
+
+    /// Unix timestamp of the post's last update time, in UTC time zone.
+    pub update_timestamp: i64,
+
+    /// The post's category.
+    pub category: String,
+
+    /// The post's tags.
+    pub tags: Vec<String>,
+
+    /// Number of views of the post.
+    pub views: u64,
+
+    /// Content of the post.
+    pub content: String,
+}
+
+impl Post {
+    /// Get the post's creation time.
+    pub fn create_time(&self) -> OffsetDateTime {
+        OffsetDateTime::from_unix_timestamp(self.create_timestamp).unwrap()
+    }
+
+    /// Get the post's last update time.
+    pub fn update_time(&self) -> OffsetDateTime {
+        OffsetDateTime::from_unix_timestamp(self.update_timestamp).unwrap()
+    }
+}
 
 impl Model for Post {
     type SelectKey = str;
@@ -77,7 +124,7 @@ impl Model for Post {
 
         let conn = conn.read().unwrap();
 
-        let limit = pagination.page_size;
+        let limit = pagination.page_size();
         let offset = pagination.skip_count();
 
         let mut query_stmt = conn.prepare_cached(SELECT_SQL).unwrap();
@@ -254,41 +301,20 @@ impl Model for Post {
     }
 }
 
-pub(crate) trait PostModelExt: Model {
-    fn update_views_into<K>(
-        conn: &RwLock<Connection>,
-        key: &K,
-        views: u64,
-    ) -> Result<(), rusqlite::Error>
-    where
-        K: ?Sized + Borrow<<Self as Model>::SelectKey>;
-}
+/// A resource object that is attached to a post.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PostResource {
+    /// ID of the associated post.
+    pub post_id: i64,
 
-impl PostModelExt for Post {
-    fn update_views_into<K>(
-        conn: &RwLock<Connection>,
-        key: &K,
-        views: u64,
-    ) -> Result<(), rusqlite::Error>
-    where
-        K: ?Sized + Borrow<<Self as Model>::SelectKey>,
-    {
-        let slug: &str = key.borrow();
+    /// Name of the resource.
+    pub name: String,
 
-        const UPDATE_SQL: &str = r#"
-            UPDATE posts
-            SET views = ?
-            WHERE slug == ?;
-        "#;
+    /// MIME type of the resource.
+    pub ty: String,
 
-        let conn = conn.read().unwrap();
-        let updated_rows = conn.execute(UPDATE_SQL, (views, slug))?;
-        if updated_rows == 0 {
-            return Err(rusqlite::Error::QueryReturnedNoRows);
-        }
-
-        Ok(())
-    }
+    /// Data of the resource.
+    pub data: Vec<u8>,
 }
 
 impl Model for PostResource {
@@ -392,6 +418,43 @@ impl Model for PostResource {
         }
 
         Ok(ret)
+    }
+}
+
+pub(crate) trait PostModelExt: Model {
+    fn update_views_into<K>(
+        conn: &RwLock<Connection>,
+        key: &K,
+        views: u64,
+    ) -> Result<(), rusqlite::Error>
+    where
+        K: ?Sized + Borrow<<Self as Model>::SelectKey>;
+}
+
+impl PostModelExt for Post {
+    fn update_views_into<K>(
+        conn: &RwLock<Connection>,
+        key: &K,
+        views: u64,
+    ) -> Result<(), rusqlite::Error>
+    where
+        K: ?Sized + Borrow<<Self as Model>::SelectKey>,
+    {
+        let slug: &str = key.borrow();
+
+        const UPDATE_SQL: &str = r#"
+            UPDATE posts
+            SET views = ?
+            WHERE slug == ?;
+        "#;
+
+        let conn = conn.read().unwrap();
+        let updated_rows = conn.execute(UPDATE_SQL, (views, slug))?;
+        if updated_rows == 0 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
+
+        Ok(())
     }
 }
 

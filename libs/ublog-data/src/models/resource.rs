@@ -2,10 +2,23 @@ use std::borrow::Borrow;
 use std::sync::RwLock;
 
 use rusqlite::{Connection, Row};
-use ublog_models::resource::Resource;
+use serde::{Deserialize, Serialize};
 
+use crate::db::Pagination;
 use crate::models::Model;
-use crate::Pagination;
+
+/// A static resource.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Resource {
+    /// Name of the resource.
+    pub name: String,
+
+    /// The MIME type of the resource.
+    pub ty: String,
+
+    /// Raw data of the resource.
+    pub data: Vec<u8>,
+}
 
 impl Model for Resource {
     type SelectKey = str;
