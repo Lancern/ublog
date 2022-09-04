@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "db", "markdown", "models", "notion"]
+members = [".", "libs/*"]
 
 [package]
 name = "ublog"
