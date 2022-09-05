@@ -4,7 +4,6 @@ use std::sync::RwLock;
 use rusqlite::{Connection, Row};
 use serde::{Deserialize, Serialize};
 
-use crate::db::Pagination;
 use crate::models::Model;
 
 /// A static resource.
@@ -21,6 +20,8 @@ pub struct Resource {
 }
 
 impl Model for Resource {
+    const OBJECT_NAME: &'static str = "resource";
+
     type SelectKey = str;
     type UpdateMask = ();
 
@@ -50,13 +51,6 @@ impl Model for Resource {
         conn.query_row(SELECT_SQL, (name,), Self::from_row)
     }
 
-    fn select_many_from(
-        _conn: &RwLock<Connection>,
-        _pagination: &Pagination,
-    ) -> Result<Vec<Self>, rusqlite::Error> {
-        panic!("Selecting many resource objects from database is not a supported operation");
-    }
-
     fn insert_into(&mut self, conn: &RwLock<Connection>) -> Result<(), rusqlite::Error> {
         const INSERT_SQL: &str = r#"
             INSERT INTO resources (name, ty, data)
@@ -67,18 +61,6 @@ impl Model for Resource {
 
         conn.execute(INSERT_SQL, (&self.name, &self.ty, &self.data))?;
         Ok(())
-    }
-
-    fn update_into<K>(
-        &mut self,
-        _conn: &RwLock<Connection>,
-        _key: &K,
-        _mask: &Self::UpdateMask,
-    ) -> Result<(), rusqlite::Error>
-    where
-        K: ?Sized + Borrow<Self::SelectKey>,
-    {
-        panic!("Updating resource object into database is not a supported operation");
     }
 
     fn delete_from<K>(conn: &RwLock<Connection>, key: &K) -> Result<(), rusqlite::Error>

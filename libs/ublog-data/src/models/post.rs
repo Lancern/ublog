@@ -57,6 +57,8 @@ impl Post {
 }
 
 impl Model for Post {
+    const OBJECT_NAME: &'static str = "post";
+
     type SelectKey = str;
     type UpdateMask = PostUpdateMask;
 
@@ -318,6 +320,8 @@ pub struct PostResource {
 }
 
 impl Model for PostResource {
+    const OBJECT_NAME: &'static str = "post_resource";
+
     type SelectKey = (i64, String);
     type UpdateMask = ();
 
@@ -350,13 +354,6 @@ impl Model for PostResource {
         conn.query_row(SELECT_SQL, (post_id, res_name), Self::from_row)
     }
 
-    fn select_many_from(
-        _conn: &RwLock<Connection>,
-        _pagination: &Pagination,
-    ) -> Result<Vec<Self>, rusqlite::Error> {
-        panic!("Selecting a list of post resource objects is not a supported operation.");
-    }
-
     fn insert_into(&mut self, conn: &RwLock<Connection>) -> Result<(), rusqlite::Error> {
         const INSERT_SQL: &str = r#"
             INSERT INTO posts_resources (post_id, res_name, res_type, res_data)
@@ -366,18 +363,6 @@ impl Model for PostResource {
         let conn = conn.read().unwrap();
         conn.execute(INSERT_SQL, (self.post_id, &self.name, &self.ty, &self.data))?;
         Ok(())
-    }
-
-    fn update_into<K>(
-        &mut self,
-        _conn: &RwLock<Connection>,
-        _key: &K,
-        _mask: &Self::UpdateMask,
-    ) -> Result<(), rusqlite::Error>
-    where
-        K: ?Sized + Borrow<Self::SelectKey>,
-    {
-        panic!("Updating post resource object is not a supported operation.");
     }
 
     fn delete_from<K>(conn: &RwLock<Connection>, key: &K) -> Result<(), rusqlite::Error>
