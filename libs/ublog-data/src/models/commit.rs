@@ -1,7 +1,6 @@
 use std::sync::RwLock;
 
 use rusqlite::{Connection, Row};
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
@@ -24,18 +23,17 @@ pub struct Commit {
     /// The previous commit ID.
     pub prev_commit_id: Vec<u8>,
 
-    /// The serialized data of the commit.
-    pub data: Vec<u8>,
+    /// The commit's payload.
+    pub payload: CommitPayload,
 }
 
 impl Commit {
-    /// Create a new commit object that contains serialized form of the given payload.
-    pub fn new<T, U>(payload: &T, prev_commit_id: U) -> Self
+    /// Create a new commit object that contains the specified payload and points the specified commit as its parent
+    /// commit.
+    pub fn new<T>(prev_commit_id: T, payload: CommitPayload) -> Self
     where
-        T: ?Sized + Serialize,
-        U: Into<Vec<u8>>,
+        T: Into<Vec<u8>>,
     {
-        let payload_data = bincode::serialize(payload).unwrap();
         let prev_commit_id = prev_commit_id.into();
         let timestamp = OffsetDateTime::now_utc().unix_timestamp();
 
@@ -43,7 +41,7 @@ impl Commit {
             id: Vec::new(),
             timestamp,
             prev_commit_id,
-            data: payload_data,
+            payload,
         };
         let commit_digest_data = bincode::serialize(&commit).unwrap();
         let commit_digest = {
@@ -55,14 +53,6 @@ impl Commit {
         commit.id = Vec::from(commit_digest.as_slice());
 
         commit
-    }
-
-    /// Deserialize the commit's data and get its payload object.
-    pub fn get<T>(&self) -> Result<T, bincode::Error>
-    where
-        T: DeserializeOwned,
-    {
-        bincode::deserialize(&self.data)
     }
 }
 
@@ -78,7 +68,7 @@ impl Model for Commit {
                 id             BLOB NOT NULL,
                 timestamp      INTEGER NOT NULL,
                 prev_commit_id BLOB NOT NULL,
-                data           BLOB NOT NULL
+                payload        BLOB NOT NULL
             );
 
             CREATE INDEX IF NOT EXISTS commits_idx_timestamp ON commits (timestamp ASC);
@@ -90,28 +80,96 @@ impl Model for Commit {
 
     fn insert_into(&mut self, conn: &RwLock<Connection>) -> Result<(), rusqlite::Error> {
         const INSERT_SQL: &str = r#"
-            INSERT INTO commits (id, timestamp, prev_commit_id, data)
+            INSERT INTO commits (id, timestamp, prev_commit_id, payload)
             VALUES (?, ?, ?, ?);
         "#;
+
+        let payload_data = self.payload.serialize();
 
         let conn = conn.read().unwrap();
 
         conn.execute(
             INSERT_SQL,
-            (&self.id, self.timestamp, &self.prev_commit_id, &self.data),
+            (
+                &self.id,
+                self.timestamp,
+                &self.prev_commit_id,
+                &payload_data,
+            ),
         )?;
         Ok(())
     }
 
     fn from_row(row: &Row) -> Result<Self, rusqlite::Error> {
+        let payload_data: Vec<u8> = row.get("payload")?;
+        let payload = CommitPayload::deserialize(&payload_data).unwrap();
+
         let commit = Self {
             id: row.get("id")?,
             timestamp: row.get("timestamp")?,
             prev_commit_id: row.get("prev_commit_id")?,
-            data: row.get("data")?,
+            payload,
         };
         Ok(commit)
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum CommitPayload {
+    CreatePost(CreatePostCommitPayload),
+    UpdatePost(UpdatePostCommitPayload),
+    DeletePost(DeletePostCommitPayload),
+    CreatePostResource(CreatePostResourceCommitPayload),
+    DeletePostResource(DeletePostResourceCommitPayload),
+    CreateResource(CreateResourcePayload),
+    DeleteResource(DeleteResourcePayload),
+}
+
+impl CommitPayload {
+    fn serialize(&self) -> Vec<u8> {
+        bincode::serialize(self).unwrap()
+    }
+
+    fn deserialize(data: &[u8]) -> Result<Self, bincode::Error> {
+        bincode::deserialize(data)
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CreatePostCommitPayload {
+    pub slug: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct UpdatePostCommitPayload {
+    pub slug: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DeletePostCommitPayload {
+    pub slug: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CreatePostResourceCommitPayload {
+    pub post_slug: String,
+    pub resource_name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DeletePostResourceCommitPayload {
+    pub post_slug: String,
+    pub resource_name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CreateResourcePayload {
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DeleteResourcePayload {
+    pub name: String,
 }
 
 pub(crate) trait CommitModelExt: Model {
@@ -127,7 +185,7 @@ impl CommitModelExt for Commit {
         starting_timestamp: i64,
     ) -> Result<Vec<Self>, rusqlite::Error> {
         const SELECT_SQL: &str = r#"
-            SELECT id, timestamp, prev_commit_id, data FROM commits
+            SELECT id, timestamp, prev_commit_id, payload FROM commits
             WHERE timestamp >= ?
             ORDER BY timestamp ASC;
         "#;
@@ -146,24 +204,10 @@ impl CommitModelExt for Commit {
 mod tests {
     use super::*;
 
-    #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-    struct MockPayload {
-        data: i32,
-    }
-
     fn init_db_connection() -> RwLock<Connection> {
         let conn = Connection::open_in_memory().unwrap();
         Commit::init_db_schema(&conn).unwrap();
         RwLock::new(conn)
-    }
-
-    #[test]
-    fn test_new_commit_and_get() {
-        let payload = MockPayload { data: 42 };
-        let commit = Commit::new(&payload, []);
-
-        let deserialized_payload = commit.get::<MockPayload>().unwrap();
-        assert_eq!(payload, deserialized_payload);
     }
 
     #[test]
@@ -174,7 +218,9 @@ mod tests {
             id: Vec::new(),
             timestamp: 100,
             prev_commit_id: Vec::new(),
-            data: Vec::new(),
+            payload: CommitPayload::CreatePost(CreatePostCommitPayload {
+                slug: String::from("slug"),
+            }),
         };
         commit.insert_into(&conn).unwrap();
     }
@@ -187,19 +233,25 @@ mod tests {
             id: vec![1, 2],
             timestamp: 100,
             prev_commit_id: Vec::new(),
-            data: vec![10, 20],
+            payload: CommitPayload::CreatePost(CreatePostCommitPayload {
+                slug: String::from("slug"),
+            }),
         };
         let mut commit2 = Commit {
             id: vec![3, 4],
             timestamp: 200,
             prev_commit_id: vec![1, 2],
-            data: vec![30, 40],
+            payload: CommitPayload::CreatePost(CreatePostCommitPayload {
+                slug: String::from("slug"),
+            }),
         };
         let mut commit3 = Commit {
             id: vec![5, 6],
             timestamp: 300,
             prev_commit_id: vec![3, 4],
-            data: vec![50, 60],
+            payload: CommitPayload::CreatePost(CreatePostCommitPayload {
+                slug: String::from("slug"),
+            }),
         };
         commit1.insert_into(&conn).unwrap();
         commit2.insert_into(&conn).unwrap();
@@ -211,11 +263,9 @@ mod tests {
         assert_eq!(commits[0].id, vec![3, 4]);
         assert_eq!(commits[0].timestamp, 200);
         assert_eq!(commits[0].prev_commit_id, vec![1, 2]);
-        assert_eq!(commits[0].data, vec![30, 40]);
 
         assert_eq!(commits[1].id, vec![5, 6]);
         assert_eq!(commits[1].timestamp, 300);
         assert_eq!(commits[1].prev_commit_id, vec![3, 4]);
-        assert_eq!(commits[1].data, vec![50, 60]);
     }
 }
