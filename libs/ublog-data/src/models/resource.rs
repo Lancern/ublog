@@ -23,7 +23,6 @@ impl Model for Resource {
     const OBJECT_NAME: &'static str = "resource";
 
     type SelectKey = str;
-    type UpdateMask = ();
 
     fn init_db_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         const INIT_SQL: &str = r#"

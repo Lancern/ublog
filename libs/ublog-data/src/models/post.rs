@@ -1,12 +1,12 @@
 use std::borrow::Borrow;
 use std::sync::RwLock;
 
-use lazy_static::lazy_static;
 use rusqlite::{Connection, Row, Rows, ToSql};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+use ublog_doc::DocumentNode;
 
-use crate::db::{Pagination, PostUpdateMask};
+use crate::db::Pagination;
 
 use crate::models::Model;
 
@@ -41,7 +41,7 @@ pub struct Post {
     pub views: u64,
 
     /// Content of the post.
-    pub content: String,
+    pub content: DocumentNode,
 }
 
 impl Post {
@@ -54,13 +54,20 @@ impl Post {
     pub fn update_time(&self) -> OffsetDateTime {
         OffsetDateTime::from_unix_timestamp(self.update_timestamp).unwrap()
     }
+
+    fn serialize_content(&self) -> Vec<u8> {
+        bincode::serialize(&self.content).unwrap()
+    }
+
+    fn deserialize_content(data: &[u8]) -> DocumentNode {
+        bincode::deserialize(data).unwrap()
+    }
 }
 
 impl Model for Post {
     const OBJECT_NAME: &'static str = "post";
 
     type SelectKey = str;
-    type UpdateMask = PostUpdateMask;
 
     fn init_db_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         const INIT_SQL: &str = r#"
@@ -73,7 +80,7 @@ impl Model for Post {
                 update_timestamp INTEGER NOT NULL,
                 category         TEXT NOT NULL,
                 views            INTEGER NOT NULL,
-                content          TEXT NOT NULL
+                content          BLOB NOT NULL
             );
 
             CREATE UNIQUE INDEX IF NOT EXISTS posts_idx_slug     ON posts (slug);
@@ -152,6 +159,8 @@ impl Model for Post {
         let create_timestamp = now_utc_unix_timestamp();
         let update_timestamp = create_timestamp;
 
+        let content_data = self.serialize_content();
+
         // Insert the post object into the database.
         trans.execute(
             INSERT_POST_SQL,
@@ -162,7 +171,7 @@ impl Model for Post {
                 create_timestamp,
                 update_timestamp,
                 &self.category,
-                &self.content,
+                &content_data,
             ),
         )?;
         self.id = trans.last_insert_rowid();
@@ -180,71 +189,61 @@ impl Model for Post {
         Ok(())
     }
 
-    fn update_into<K>(
-        &mut self,
-        conn: &RwLock<Connection>,
-        key: &K,
-        mask: &Self::UpdateMask,
-    ) -> Result<(), rusqlite::Error>
-    where
-        K: ?Sized + Borrow<Self::SelectKey>,
-    {
-        if mask.is_empty() {
-            return Ok(());
-        }
+    fn update_into(&mut self, conn: &RwLock<Connection>) -> Result<(), rusqlite::Error> {
+        const QUERY_ID_SQL: &str = r#"
+            SELECT id FROM posts WHERE slug == ?;
+        "#;
 
-        let slug: &str = key.borrow();
+        const UPDATE_POST_SQL: &str = r#"
+            UPDATE posts
+            SET
+                title = ?,
+                author = ?,
+                create_timestamp = ?,
+                update_timestamp = ?,
+                category = ?,
+                content = ?
+            WHERE
+                slug == ?;
+        "#;
+
         let update_timestamp = now_utc_unix_timestamp();
-
-        let mut update_sql_setters = Vec::new();
-        let mut update_params: Vec<&dyn ToSql> = Vec::new();
-
-        for field in &*POST_FIELDS {
-            if mask.contains(field.mask) {
-                update_sql_setters.push(format!("{} = ?", field.name));
-                update_params.push((field.field_getter)(self));
-            }
-        }
-
-        update_params.push(&slug);
-
-        let update_post_sql = format!(
-            r#"
-                UPDATE posts
-                SET {}
-                WHERE slug == ?;
-            "#,
-            update_sql_setters.join(",")
-        );
 
         let mut conn = conn.write().unwrap();
         let trans = conn.transaction()?;
 
-        // Select the post ID, which may be used later.
-        const SELECT_POST_ID_SQL: &str = r#"
-            SELECT id FROM posts
-            WHERE slug == ?;
-        "#;
-        let post_id: i64 = trans.query_row(SELECT_POST_ID_SQL, (slug,), |row| row.get(0))?;
+        // Query post ID.
+        let post_id = trans.query_row(QUERY_ID_SQL, (&self.slug,), |row| row.get("id"))?;
+        self.id = post_id;
 
         // Update the post object itself.
-        let rows_updated = trans.execute(&update_post_sql, update_params.as_slice())?;
+        let content_data = self.serialize_content();
+        let rows_updated = trans.execute(
+            UPDATE_POST_SQL,
+            (
+                &self.title,
+                &self.author,
+                &self.create_timestamp,
+                &self.update_timestamp,
+                &self.category,
+                &content_data,
+                &self.slug,
+            ),
+        )?;
         if rows_updated == 0 {
             return Err(rusqlite::Error::QueryReturnedNoRows);
         }
 
         // Update the post's tags, if any.
-        if mask.contains(PostUpdateMask::TAGS) {
-            // Delete all old tags.
-            const DELETE_TAGS_SQL: &str = r#"
-                DELETE FROM posts_tags
-                WHERE post_id == ?;
-            "#;
-            trans.execute(DELETE_TAGS_SQL, (post_id,))?;
+        // Delete all old tags.
+        const DELETE_TAGS_SQL: &str = r#"
+            DELETE FROM posts_tags
+            WHERE post_id == ?;
+        "#;
+        trans.execute(DELETE_TAGS_SQL, (&post_id,))?;
 
-            // Insert all new tags.
-            insert_post_tags(&trans, post_id, &self.tags)?;
-        }
+        // Insert all new tags.
+        insert_post_tags(&trans, post_id, &self.tags)?;
 
         trans.commit()?;
 
@@ -270,6 +269,8 @@ impl Model for Post {
     }
 
     fn from_row(row: &Row) -> Result<Self, rusqlite::Error> {
+        let content_data: Vec<u8> = row.get("content")?;
+        let content = Self::deserialize_content(&content_data);
         Ok(Post {
             id: row.get("id")?,
             title: row.get("title")?,
@@ -280,7 +281,7 @@ impl Model for Post {
             category: row.get("category")?,
             tags: Vec::new(),
             views: row.get("views")?,
-            content: row.get("content")?,
+            content,
         })
     }
 
@@ -296,7 +297,7 @@ impl Model for Post {
                 category: row.get("category")?,
                 tags: Vec::new(),
                 views: row.get("views")?,
-                content: String::new(),
+                content: DocumentNode::default(),
             })
         })
         .collect()
@@ -323,7 +324,6 @@ impl Model for PostResource {
     const OBJECT_NAME: &'static str = "post_resource";
 
     type SelectKey = (i64, String);
-    type UpdateMask = ();
 
     fn init_db_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         const INIT_SQL: &str = r#"
@@ -493,41 +493,6 @@ fn insert_post_tags(
     Ok(())
 }
 
-struct PostFieldDescriptor {
-    mask: PostUpdateMask,
-    name: &'static str,
-    field_getter: Box<dyn Send + Sync + Fn(&Post) -> &dyn ToSql>,
-}
-
-impl PostFieldDescriptor {
-    fn new<G>(mask: PostUpdateMask, name: &'static str, getter: G) -> Self
-    where
-        G: 'static + Send + Sync + Fn(&Post) -> &dyn ToSql,
-    {
-        Self {
-            mask,
-            name,
-            field_getter: Box::new(getter),
-        }
-    }
-}
-
-macro_rules! make_post_field_descriptor {
-    ( $mask:expr, $field_name:ident ) => {
-        PostFieldDescriptor::new($mask, stringify!($field_name), |post| &post.$field_name)
-    };
-}
-
-lazy_static! {
-    static ref POST_FIELDS: Vec<PostFieldDescriptor> = vec![
-        make_post_field_descriptor!(PostUpdateMask::TITLE, title),
-        make_post_field_descriptor!(PostUpdateMask::SLUG, slug),
-        make_post_field_descriptor!(PostUpdateMask::AUTHOR, author),
-        make_post_field_descriptor!(PostUpdateMask::CATEGORY, category),
-        make_post_field_descriptor!(PostUpdateMask::CONTENT, content),
-    ];
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -569,7 +534,7 @@ mod tests {
             category: String::from("category"),
             tags: Vec::new(),
             views: 100,
-            content: String::from("hello"),
+            content: DocumentNode::default(),
         };
         post.insert_into(&conn).unwrap();
 
@@ -592,7 +557,7 @@ mod tests {
             category: String::from("category"),
             tags: Vec::new(),
             views: 100,
-            content: String::from("hello"),
+            content: DocumentNode::default(),
         };
         post.insert_into(&conn).unwrap();
 
@@ -617,7 +582,7 @@ mod tests {
             category: String::from("category"),
             tags: vec![String::from("tag1"), String::from("tag2")],
             views: 100,
-            content: String::from("hello"),
+            content: DocumentNode::default(),
         };
         post.insert_into(&conn).unwrap();
 
@@ -642,7 +607,7 @@ mod tests {
             category: String::from("category"),
             tags: vec![String::from("tag1"), String::from("tag2")],
             views: 0,
-            content: String::from("hello"),
+            content: DocumentNode::default(),
         };
         post.insert_into(&conn).unwrap();
 
@@ -656,7 +621,6 @@ mod tests {
         assert_eq!(post.category, selected_post.category);
         assert_eq!(post.tags, selected_post.tags);
         assert_eq!(post.views, selected_post.views);
-        assert_eq!(post.content, selected_post.content);
     }
 
     #[test]
@@ -686,7 +650,7 @@ mod tests {
             category: String::from("category"),
             tags: vec![String::from("tag1"), String::from("tag2")],
             views: 0,
-            content: String::from("hello"),
+            content: DocumentNode::default(),
         };
         post1.insert_into(&conn).unwrap();
 
@@ -720,7 +684,6 @@ mod tests {
         assert_eq!(post2.category, selected_post.category);
         assert_eq!(post2.tags, selected_post.tags);
         assert_eq!(post2.views, selected_post.views);
-        assert_eq!("", selected_post.content);
     }
 
     #[test]
@@ -737,31 +700,28 @@ mod tests {
             category: String::from("category"),
             tags: vec![String::from("tag1"), String::from("tag2")],
             views: 0,
-            content: String::from("hello"),
+            content: DocumentNode::default(),
         };
         post.insert_into(&conn).unwrap();
 
         let mut update_post = Post {
             id: 0,
             title: String::from("title2"),
-            slug: String::from("slug2"),
+            slug: String::from("slug"),
             author: String::from("msr2"),
             create_timestamp: 30,
             update_timestamp: 30,
             category: String::from("category2"),
             tags: vec![String::from("tag1"), String::from("tag3")],
             views: 0,
-            content: String::from("hello2"),
+            content: DocumentNode::default(),
         };
-        update_post
-            .update_into(&conn, "slug", &PostUpdateMask::all())
-            .unwrap();
+        update_post.update_into(&conn).unwrap();
 
-        let selected_post = Post::select_one_from(&conn, "slug2").unwrap();
+        let selected_post = Post::select_one_from(&conn, "slug").unwrap();
         assert_eq!(selected_post.title, "title2");
         assert_eq!(selected_post.author, "msr2");
         assert_eq!(selected_post.category, "category2");
-        assert_eq!(selected_post.content, "hello2");
 
         let selected_post_tags: HashSet<_> = selected_post.tags.into_iter().collect();
         let expected_post_tags: HashSet<_> = vec![String::from("tag1"), String::from("tag3")]
@@ -784,11 +744,9 @@ mod tests {
             category: String::from("category"),
             tags: Vec::new(),
             views: 0,
-            content: String::from("hello"),
+            content: DocumentNode::default(),
         };
-        let update_err = post
-            .update_into(&conn, "foo", &PostUpdateMask::all())
-            .unwrap_err();
+        let update_err = post.update_into(&conn).unwrap_err();
 
         match update_err {
             rusqlite::Error::QueryReturnedNoRows => {}
@@ -812,7 +770,7 @@ mod tests {
             category: String::from("category"),
             tags: Vec::new(),
             views: 0,
-            content: String::from("hello"),
+            content: DocumentNode::default(),
         };
         post.insert_into(&conn).unwrap();
 
@@ -847,7 +805,7 @@ mod tests {
             category: String::from("category"),
             tags: Vec::new(),
             views: 0,
-            content: String::from("hello"),
+            content: DocumentNode::default(),
         };
         post.insert_into(&conn).unwrap();
 

@@ -1,6 +1,7 @@
 use time::format_description::well_known::Iso8601;
 use time::Date;
 use ublog_data::models::Post;
+use ublog_doc::DocumentNode;
 
 use crate::api::models::{Database, Page, PropertyValue};
 use crate::api::{
@@ -57,7 +58,7 @@ pub fn create_post_from_page(page: &Page) -> Result<NotionPost, NotionBlogError>
             category,
             tags,
             views: 0,
-            content: String::new(),
+            content: DocumentNode::default(),
         },
     };
     Ok(post)

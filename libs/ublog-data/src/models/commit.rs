@@ -60,7 +60,6 @@ impl Model for Commit {
     const OBJECT_NAME: &'static str = "commit";
 
     type SelectKey = ();
-    type UpdateMask = ();
 
     fn init_db_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         const INIT_SQL: &str = r#"

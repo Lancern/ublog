@@ -987,12 +987,11 @@ name = "ublog-data"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "bitflags",
- "lazy_static",
  "rusqlite",
  "serde",
  "sha2",
  "time",
+ "ublog-doc",
 ]
 
 [[package]]
@@ -1019,6 +1018,7 @@ dependencies = [
  "time",
  "tokio",
  "ublog-data",
+ "ublog-doc",
 ]
 
 [[package]]

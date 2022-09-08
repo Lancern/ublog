@@ -2,7 +2,6 @@ use std::borrow::Borrow;
 use std::path::Path;
 use std::sync::RwLock;
 
-use bitflags::bitflags;
 use rusqlite::Connection;
 
 use crate::models::post::PostModelExt;
@@ -67,19 +66,12 @@ impl Database {
         self.insert_one(post)
     }
 
-    /// Update the post object with the given slug by the given post object with the fields selected by the specified
-    /// mask.
-    pub fn update_post<T>(
-        &self,
-        post: &mut Post,
-        slug: T,
-        mask: &PostUpdateMask,
-    ) -> Result<(), rusqlite::Error>
+    /// Update the specified post object.
+    pub fn update_post<T>(&self, post: &mut Post) -> Result<(), rusqlite::Error>
     where
         T: AsRef<str>,
     {
-        let slug = slug.as_ref();
-        self.update_one(post, slug, mask)
+        self.update_one(post)
     }
 
     /// Set the views count of the specified post.
@@ -162,17 +154,11 @@ impl Database {
         model.insert_into(&self.conn)
     }
 
-    fn update_one<M, K>(
-        &self,
-        model: &mut M,
-        key: &K,
-        mask: &M::UpdateMask,
-    ) -> Result<(), rusqlite::Error>
+    fn update_one<M>(&self, model: &mut M) -> Result<(), rusqlite::Error>
     where
         M: Model,
-        K: ?Sized + Borrow<M::SelectKey>,
     {
-        model.update_into(&self.conn, key, mask)
+        model.update_into(&self.conn)
     }
 
     fn delete_one<M, K>(&self, key: &K) -> Result<(), rusqlite::Error>
@@ -216,17 +202,5 @@ impl Pagination {
     /// Get the number of items before the first element of the specified page.
     pub fn skip_count(&self) -> usize {
         (self.page - 1) * self.page_size
-    }
-}
-
-bitflags! {
-    /// A bit mask that selects the fields of [`Post`] that will be updated to the database.
-    pub struct PostUpdateMask : u64 {
-        const TITLE    = 0x01;
-        const SLUG     = 0x02;
-        const AUTHOR   = 0x04;
-        const CATEGORY = 0x08;
-        const CONTENT  = 0x10;
-        const TAGS     = 0x20;
     }
 }

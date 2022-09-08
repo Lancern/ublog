@@ -40,10 +40,17 @@ pub enum Node {
 }
 
 /// The root node of a document tree, which represents the whole document.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct DocumentNode {
     /// Child nodes of this document node.
     pub children: Vec<Node>,
+}
+
+impl DocumentNode {
+    /// Create a new `DocumentNode` object.
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 /// A document node that represents a paragraph.

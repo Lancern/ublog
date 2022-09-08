@@ -17,7 +17,6 @@ pub(crate) trait Model: Sized {
     const OBJECT_NAME: &'static str;
 
     type SelectKey: ?Sized;
-    type UpdateMask: ?Sized;
 
     fn init_db_schema(conn: &Connection) -> Result<(), rusqlite::Error>;
 
@@ -48,15 +47,7 @@ pub(crate) trait Model: Sized {
         );
     }
 
-    fn update_into<K>(
-        &mut self,
-        _conn: &RwLock<Connection>,
-        _key: &K,
-        _mask: &Self::UpdateMask,
-    ) -> Result<(), rusqlite::Error>
-    where
-        K: ?Sized + Borrow<Self::SelectKey>,
-    {
+    fn update_into(&mut self, _conn: &RwLock<Connection>) -> Result<(), rusqlite::Error> {
         panic!(
             "Updating a(n) {} object is not a supported operation.",
             Self::OBJECT_NAME

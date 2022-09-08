@@ -15,3 +15,4 @@ serde = { version = "1.0.144", features = ["derive"] }
 time = { version = "0.3.14", features = ["parsing"] }
 tokio = { version = "1.20.1", features = ["time"] }
 ublog-data = { path = "../ublog-data" }
+ublog-doc = { path = "../ublog-doc" }
