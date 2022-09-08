@@ -998,6 +998,9 @@ dependencies = [
 [[package]]
 name = "ublog-doc"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "ublog-markdown"
