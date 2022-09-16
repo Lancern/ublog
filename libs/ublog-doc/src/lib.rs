@@ -33,49 +33,71 @@ impl DocumentNode {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 pub enum DocumentNodeTag {
+    #[serde(rename = "root")]
     Root,
+
+    #[serde(rename = "paragraph")]
     Paragraph,
-    Heading {
-        level: i32,
-    },
-    Callout {
-        emoji: Option<String>,
-    },
+
+    #[serde(rename = "heading")]
+    Heading { level: i32 },
+
+    #[serde(rename = "callout")]
+    Callout { emoji: Option<String> },
+
+    #[serde(rename = "quote")]
     Quote,
+
+    #[serde(rename = "list")]
     List {
+        #[serde(rename = "isOrdered")]
         is_ordered: bool,
     },
+
+    #[serde(rename = "listItem")]
     ListItem,
+
+    #[serde(rename = "code")]
     Code {
         language: String,
         caption: Option<String>,
     },
+
+    #[serde(rename = "equation")]
     Equation {
         expr: String,
         caption: Option<String>,
     },
+
+    #[serde(rename = "image")]
     Image {
         url: String,
         caption: Option<String>,
     },
-    Table {
-        caption: Option<String>,
-    },
+
+    #[serde(rename = "table")]
+    Table { caption: Option<String> },
+
+    #[serde(rename = "tableRow")]
     TableRow,
+
+    #[serde(rename = "tableCell")]
     TableCell,
+
+    #[serde(rename = "divider")]
     Divider,
-    Inline {
-        style: Option<InlineStyle>,
-    },
-    InlineText {
-        text: String,
-    },
-    InlineCode {
-        code: String,
-    },
-    InlineEquation {
-        expr: String,
-    },
+
+    #[serde(rename = "inline")]
+    Inline { style: Option<InlineStyle> },
+
+    #[serde(rename = "inlineText")]
+    InlineText { text: String },
+
+    #[serde(rename = "inlineCode")]
+    InlineCode { code: String },
+
+    #[serde(rename = "inlineEquation")]
+    InlineEquation { expr: String },
 }
 
 /// Style settings of an inlined document tree element.
@@ -84,6 +106,7 @@ pub struct InlineStyle {
     pub bold: bool,
     pub italic: bool,
     pub underline: bool,
+    #[serde(rename = "strikethrough")]
     pub strike_through: bool,
     pub color: Option<String>,
 }

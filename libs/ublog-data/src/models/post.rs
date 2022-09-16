@@ -56,11 +56,11 @@ impl Post {
     }
 
     fn serialize_content(&self) -> Vec<u8> {
-        bincode::serialize(&self.content).unwrap()
+        bson::to_vec(&self.content).unwrap()
     }
 
     fn deserialize_content(data: &[u8]) -> DocumentNode {
-        bincode::deserialize(data).unwrap()
+        bson::from_slice(data).unwrap()
     }
 }
 

@@ -43,7 +43,7 @@ impl Commit {
             prev_commit_id,
             payload,
         };
-        let commit_digest_data = bincode::serialize(&commit).unwrap();
+        let commit_digest_data = bson::to_vec(&commit).unwrap();
         let commit_digest = {
             let mut hasher = Sha256::new();
             hasher.update(&commit_digest_data);
@@ -126,11 +126,11 @@ pub enum CommitPayload {
 
 impl CommitPayload {
     fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap()
+        bson::to_vec(self).unwrap()
     }
 
-    fn deserialize(data: &[u8]) -> Result<Self, bincode::Error> {
-        bincode::deserialize(data)
+    fn deserialize(data: &[u8]) -> Result<Self, bson::de::Error> {
+        bson::from_slice(data)
     }
 }
 
