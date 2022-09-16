@@ -1,9 +1,20 @@
-use crate::api::models::*;
-use crate::render::html::{HtmlElement, HtmlNode};
+use ublog_doc::{DocumentNode, DocumentNodeTag, InlineStyle};
 
-/// Render the given rich text into HTML.
-pub fn render_rich_text(rt: &RichText) -> HtmlNode {
-    let mut node = match &rt.variants {
+use crate::api::models::*;
+
+/// Render the given rich text array.
+pub fn render_rich_text_array<'a, T>(rt: T) -> DocumentNode
+where
+    T: IntoIterator<Item = &'a RichText>,
+{
+    let mut node = DocumentNode::new(DocumentNodeTag::Inline { style: None });
+    node.children = rt.into_iter().map(render_rich_text).collect();
+    node
+}
+
+/// Render the given rich text.
+pub fn render_rich_text(rt: &RichText) -> DocumentNode {
+    let rendered = match &rt.variants {
         RichTextVariants::Text(text) => {
             if rt.annotations.code {
                 render_text_rich_text(text)
@@ -14,9 +25,7 @@ pub fn render_rich_text(rt: &RichText) -> HtmlNode {
         RichTextVariants::Equation(equation) => render_equation_rich_text(equation),
     };
 
-    set_rich_text_annotation_styles(&mut node, &rt.annotations);
-
-    HtmlNode::Element(node)
+    render_style(&rt.annotations, rendered)
 }
 
 /// Render the given rich text into plain text, discarding any style settings.
@@ -33,74 +42,48 @@ where
     rendered
 }
 
-fn render_text_rich_text(rt: &TextRichText) -> HtmlElement {
-    create_inline_element("span", rt.content.clone())
+fn render_text_rich_text(rt: &TextRichText) -> DocumentNode {
+    DocumentNode::new(DocumentNodeTag::InlineText {
+        text: rt.content.clone(),
+    })
 }
 
-fn render_code_rich_text(rt: &TextRichText) -> HtmlElement {
-    create_inline_element("code", rt.content.clone())
+fn render_code_rich_text(rt: &TextRichText) -> DocumentNode {
+    DocumentNode::new(DocumentNodeTag::InlineCode {
+        code: rt.content.clone(),
+    })
 }
 
-fn render_equation_rich_text(rt: &EquationRichText) -> HtmlElement {
-    create_inline_element("span", format!("${}$", rt.expression))
+fn render_equation_rich_text(rt: &EquationRichText) -> DocumentNode {
+    DocumentNode::new(DocumentNodeTag::InlineEquation {
+        expr: rt.expression.clone(),
+    })
 }
 
-fn create_inline_element<T>(tag: &'static str, inner_text: T) -> HtmlElement
-where
-    T: Into<String>,
-{
-    let mut span = HtmlElement::new(tag);
-    span.children.push(HtmlNode::Text(inner_text.into()));
-    span
-}
-
-fn set_rich_text_annotation_styles(span_element: &mut HtmlElement, annot: &RichTextAnnotations) {
-    let color_style = crate::render::styles::get_color_style(&annot.color);
-
-    let mut styles = vec![color_style];
+fn render_style(annot: &RichTextAnnotations, inner_rendered: DocumentNode) -> DocumentNode {
+    let mut style = InlineStyle::new();
 
     if annot.bold {
-        styles.push(String::from("bold"));
+        style.bold = true;
     }
 
     if annot.italic {
-        styles.push(String::from("italic"));
-    }
-
-    if annot.strikethrough {
-        styles.push(String::from("strikethrough"));
+        style.italic = true;
     }
 
     if annot.underline {
-        styles.push(String::from("underline"));
+        style.underline = true;
     }
 
-    span_element
-        .props
-        .insert(String::from("class"), styles.join(" "));
-}
+    if annot.strikethrough {
+        style.strike_through = true;
+    }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_set_rich_text_annotation_styles() {
-        let mut node = create_inline_element("span", "");
-        let annot = RichTextAnnotations {
-            bold: true,
-            italic: true,
-            strikethrough: true,
-            underline: true,
-            code: false,
-            color: String::from("gray_background"),
-        };
-
-        set_rich_text_annotation_styles(&mut node, &annot);
-
-        assert_eq!(
-            node.props.get("class").unwrap(),
-            "color-gray-background bold italic strikethrough underline"
-        );
+    if style == InlineStyle::new() {
+        inner_rendered
+    } else {
+        let mut wrapper = DocumentNode::new(DocumentNodeTag::Inline { style: Some(style) });
+        wrapper.children = vec![inner_rendered];
+        wrapper
     }
 }

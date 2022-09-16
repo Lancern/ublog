@@ -40,9 +40,9 @@ pub async fn get_post_content(
     let raw_content_trees = api.get_page_content(&post.notion_page_id).await?;
     let content_tree = crate::api::block_tree::normalize(raw_content_trees);
 
-    // TODO: implement get_post_content function.
-    // Render the content tree to document tree.
-    todo!()
+    post.post.content = crate::render::block::render_block_tree(&content_tree);
+
+    Ok(())
 }
 
 /// A post published via Notion.

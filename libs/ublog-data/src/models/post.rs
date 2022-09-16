@@ -297,7 +297,7 @@ impl Model for Post {
                 category: row.get("category")?,
                 tags: Vec::new(),
                 views: row.get("views")?,
-                content: DocumentNode::default(),
+                content: DocumentNode::new_empty(),
             })
         })
         .collect()
@@ -534,7 +534,7 @@ mod tests {
             category: String::from("category"),
             tags: Vec::new(),
             views: 100,
-            content: DocumentNode::default(),
+            content: DocumentNode::new_empty(),
         };
         post.insert_into(&conn).unwrap();
 
@@ -557,7 +557,7 @@ mod tests {
             category: String::from("category"),
             tags: Vec::new(),
             views: 100,
-            content: DocumentNode::default(),
+            content: DocumentNode::new_empty(),
         };
         post.insert_into(&conn).unwrap();
 
@@ -582,7 +582,7 @@ mod tests {
             category: String::from("category"),
             tags: vec![String::from("tag1"), String::from("tag2")],
             views: 100,
-            content: DocumentNode::default(),
+            content: DocumentNode::new_empty(),
         };
         post.insert_into(&conn).unwrap();
 
@@ -607,7 +607,7 @@ mod tests {
             category: String::from("category"),
             tags: vec![String::from("tag1"), String::from("tag2")],
             views: 0,
-            content: DocumentNode::default(),
+            content: DocumentNode::new_empty(),
         };
         post.insert_into(&conn).unwrap();
 
@@ -650,7 +650,7 @@ mod tests {
             category: String::from("category"),
             tags: vec![String::from("tag1"), String::from("tag2")],
             views: 0,
-            content: DocumentNode::default(),
+            content: DocumentNode::new_empty(),
         };
         post1.insert_into(&conn).unwrap();
 
@@ -700,7 +700,7 @@ mod tests {
             category: String::from("category"),
             tags: vec![String::from("tag1"), String::from("tag2")],
             views: 0,
-            content: DocumentNode::default(),
+            content: DocumentNode::new_empty(),
         };
         post.insert_into(&conn).unwrap();
 
@@ -714,7 +714,7 @@ mod tests {
             category: String::from("category2"),
             tags: vec![String::from("tag1"), String::from("tag3")],
             views: 0,
-            content: DocumentNode::default(),
+            content: DocumentNode::new_empty(),
         };
         update_post.update_into(&conn).unwrap();
 
@@ -744,7 +744,7 @@ mod tests {
             category: String::from("category"),
             tags: Vec::new(),
             views: 0,
-            content: DocumentNode::default(),
+            content: DocumentNode::new_empty(),
         };
         let update_err = post.update_into(&conn).unwrap_err();
 
@@ -770,7 +770,7 @@ mod tests {
             category: String::from("category"),
             tags: Vec::new(),
             views: 0,
-            content: DocumentNode::default(),
+            content: DocumentNode::new_empty(),
         };
         post.insert_into(&conn).unwrap();
 
@@ -805,7 +805,7 @@ mod tests {
             category: String::from("category"),
             tags: Vec::new(),
             views: 0,
-            content: DocumentNode::default(),
+            content: DocumentNode::new_empty(),
         };
         post.insert_into(&conn).unwrap();
 

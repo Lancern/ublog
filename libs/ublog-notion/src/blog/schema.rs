@@ -58,7 +58,7 @@ pub fn create_post_from_page(page: &Page) -> Result<NotionPost, NotionBlogError>
             category,
             tags,
             views: 0,
-            content: DocumentNode::default(),
+            content: DocumentNode::new_empty(),
         },
     };
     Ok(post)
