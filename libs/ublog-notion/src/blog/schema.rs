@@ -49,7 +49,6 @@ pub fn create_post_from_page(page: &Page) -> Result<NotionPost, NotionBlogError>
     let post = NotionPost {
         notion_page_id: page.id.clone(),
         post: Post {
-            id: 0,
             title,
             slug,
             author,
@@ -57,7 +56,6 @@ pub fn create_post_from_page(page: &Page) -> Result<NotionPost, NotionBlogError>
             update_timestamp,
             category,
             tags,
-            views: 0,
             content: DocumentNode::new_empty(),
         },
     };
