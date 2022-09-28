@@ -4,6 +4,7 @@ pub mod sqlite;
 pub mod sync;
 
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 
 use crate::models::{Commit, Delta, Post, PostResource, Resource};
 
@@ -25,7 +26,7 @@ pub trait Storage: Send + Sync {
         post_slug: &str,
     ) -> Result<Option<(Post, Vec<PostResource>)>, Self::Error>;
     async fn get_posts(&self, pagination: &Pagination) -> Result<Vec<Post>, Self::Error>;
-    async fn get_post_resources(
+    async fn get_post_resource(
         &self,
         post_slug: &str,
         resource_name: &str,
@@ -43,7 +44,7 @@ pub trait Storage: Send + Sync {
 }
 
 /// Pagination parameters.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Pagination {
     page: usize,
     page_size: usize,

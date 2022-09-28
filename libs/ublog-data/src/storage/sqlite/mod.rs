@@ -111,7 +111,7 @@ impl Storage for SqliteStorage {
         crate::storage::sqlite::post::get_posts(&*conn, pagination)
     }
 
-    async fn get_post_resources(
+    async fn get_post_resource(
         &self,
         post_slug: &str,
         resource_name: &str,
