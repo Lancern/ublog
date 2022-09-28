@@ -65,6 +65,31 @@ pub(super) fn get_post(
     Ok(post)
 }
 
+pub(super) fn get_post_with_resources(
+    conn: &Connection,
+    post_slug: &str,
+) -> Result<Option<(Post, Vec<PostResource>)>, rusqlite::Error> {
+    let post = match get_post(conn, post_slug)? {
+        Some(post) => post,
+        None => {
+            return Ok(None);
+        }
+    };
+
+    const SELECT_RESOURCES_SQL: &str = r#"
+        SELECT post_slug, res_name, res_type, res_data
+        FROM posts_resources
+        where post_slug == ?;
+    "#;
+
+    let mut stmt = conn.prepare(SELECT_RESOURCES_SQL).unwrap();
+    let post_resources = stmt
+        .query_map((post_slug,), create_post_resource_from_row)?
+        .collect::<Result<_, _>>()?;
+
+    Ok(Some((post, post_resources)))
+}
+
 pub(super) fn get_posts(
     conn: &Connection,
     pagination: &Pagination,
@@ -88,6 +113,32 @@ pub(super) fn get_posts(
     }
 
     Ok(posts)
+}
+
+pub(super) fn get_post_resource(
+    conn: &Connection,
+    post_slug: &str,
+    resource_name: &str,
+) -> Result<Option<PostResource>, rusqlite::Error> {
+    const SELECT_SQL: &str = r#"
+        SELECT post_slug, res_name, res_type, res_data
+        FROM post_resources
+        WHERE post_slug == ? AND res_name == ?;
+    "#;
+
+    conn.query_row(
+        SELECT_SQL,
+        (post_slug, resource_name),
+        create_post_resource_from_row,
+    )
+    .map(Some)
+    .or_else(|err| {
+        if let rusqlite::Error::QueryReturnedNoRows = err {
+            Ok(None)
+        } else {
+            Err(err)
+        }
+    })
 }
 
 pub(super) fn insert_post(
@@ -247,6 +298,15 @@ fn create_posts_from_rows(rows: Rows) -> Result<Vec<Post>, rusqlite::Error> {
         })
     })
     .collect()
+}
+
+fn create_post_resource_from_row(row: &Row) -> Result<PostResource, rusqlite::Error> {
+    Ok(PostResource {
+        post_slug: row.get("post_slug")?,
+        name: row.get("res_name")?,
+        ty: row.get("res_types")?,
+        data: row.get("res_data")?,
+    })
 }
 
 #[cfg(test)]

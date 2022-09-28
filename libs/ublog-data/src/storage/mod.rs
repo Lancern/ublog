@@ -5,7 +5,7 @@ pub mod sync;
 
 use async_trait::async_trait;
 
-use crate::models::{Commit, Post, PostResource, Resource};
+use crate::models::{Commit, Delta, Post, PostResource, Resource};
 
 /// Provide storage for databases.
 #[async_trait]
@@ -20,7 +20,16 @@ pub trait Storage: Send + Sync {
     ) -> Result<(), Self::Error>;
     async fn delete_post(&self, post_slug: &str) -> Result<(), Self::Error>;
     async fn get_post(&self, post_slug: &str) -> Result<Option<Post>, Self::Error>;
+    async fn get_post_with_resources(
+        &self,
+        post_slug: &str,
+    ) -> Result<Option<(Post, Vec<PostResource>)>, Self::Error>;
     async fn get_posts(&self, pagination: &Pagination) -> Result<Vec<Post>, Self::Error>;
+    async fn get_post_resources(
+        &self,
+        post_slug: &str,
+        resource_name: &str,
+    ) -> Result<Option<PostResource>, Self::Error>;
 
     async fn insert_resource(&self, resource: &Resource) -> Result<(), Self::Error>;
     async fn delete_resource(&self, resource_name: &str) -> Result<(), Self::Error>;
@@ -28,6 +37,9 @@ pub trait Storage: Send + Sync {
     async fn get_resources(&self) -> Result<Vec<Resource>, Self::Error>;
 
     async fn get_commits_since(&self, since_timestamp: i64) -> Result<Vec<Commit>, Self::Error>;
+    async fn get_latest_commit(&self) -> Result<Option<Commit>, Self::Error>;
+
+    async fn apply_delta(&self, delta: &Delta) -> Result<(), Self::Error>;
 }
 
 /// Pagination parameters.

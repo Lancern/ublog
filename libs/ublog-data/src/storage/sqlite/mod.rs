@@ -8,7 +8,7 @@ use std::sync::{Mutex, MutexGuard};
 use async_trait::async_trait;
 use rusqlite::Connection;
 
-use crate::models::{Commit, CommitPayload, Post, PostResource, Resource};
+use crate::models::{Commit, CommitPayload, Delta, Post, PostResource, Resource};
 use crate::storage::{Pagination, Storage};
 
 /// Provide sqlite-based storage for databases.
@@ -98,9 +98,26 @@ impl Storage for SqliteStorage {
         crate::storage::sqlite::post::get_post(&*conn, post_slug)
     }
 
+    async fn get_post_with_resources(
+        &self,
+        post_slug: &str,
+    ) -> Result<Option<(Post, Vec<PostResource>)>, Self::Error> {
+        let conn = self.lock();
+        crate::storage::sqlite::post::get_post_with_resources(&*conn, post_slug)
+    }
+
     async fn get_posts(&self, pagination: &Pagination) -> Result<Vec<Post>, Self::Error> {
         let conn = self.lock();
         crate::storage::sqlite::post::get_posts(&*conn, pagination)
+    }
+
+    async fn get_post_resources(
+        &self,
+        post_slug: &str,
+        resource_name: &str,
+    ) -> Result<Option<PostResource>, Self::Error> {
+        let conn = self.lock();
+        crate::storage::sqlite::post::get_post_resource(&*conn, post_slug, resource_name)
     }
 
     async fn insert_resource(&self, resource: &Resource) -> Result<(), Self::Error> {
@@ -130,6 +147,38 @@ impl Storage for SqliteStorage {
     async fn get_commits_since(&self, since_timestamp: i64) -> Result<Vec<Commit>, Self::Error> {
         let conn = self.lock();
         crate::storage::sqlite::commit::get_commits(&*conn, since_timestamp)
+    }
+
+    async fn get_latest_commit(&self) -> Result<Option<Commit>, Self::Error> {
+        let conn = self.lock();
+        crate::storage::sqlite::commit::get_latest_commit(&*conn)
+    }
+
+    async fn apply_delta(&self, delta: &Delta) -> Result<(), Self::Error> {
+        let mut conn = self.lock();
+        let trans = conn.transaction()?;
+
+        for slug in &delta.deleted_post_slugs {
+            crate::storage::sqlite::post::delete_post(&trans, slug)?;
+        }
+
+        for name in &delta.deleted_resource_names {
+            crate::storage::sqlite::resource::delete_resource(&trans, name)?;
+        }
+
+        for (post, post_resources) in &delta.added_posts {
+            crate::storage::sqlite::post::insert_post(&trans, post, post_resources)?;
+        }
+
+        for resource in &delta.added_resources {
+            crate::storage::sqlite::resource::insert_resource(&trans, resource)?;
+        }
+
+        crate::storage::sqlite::commit::insert_commits(&trans, &delta.commits)?;
+
+        trans.commit()?;
+
+        Ok(())
     }
 }
 

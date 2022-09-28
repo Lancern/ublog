@@ -46,8 +46,8 @@ impl Post {
 /// A resource object that is attached to a post.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PostResource {
-    /// ID of the associated post.
-    pub post_id: i64,
+    /// Slug of the associated post.
+    pub post_slug: String,
 
     /// Name of the resource.
     pub name: String,
@@ -181,4 +181,20 @@ pub struct CreateResourceCommitPayload {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DeleteResourceCommitPayload {
     pub name: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Delta {
+    pub added_posts: Vec<(Post, Vec<PostResource>)>,
+    pub deleted_post_slugs: Vec<String>,
+    pub added_resources: Vec<Resource>,
+    pub deleted_resource_names: Vec<String>,
+    pub commits: Vec<Commit>,
+}
+
+impl Delta {
+    /// Create a new, empty `Delta`.
+    pub fn new() -> Self {
+        Self::default()
+    }
 }

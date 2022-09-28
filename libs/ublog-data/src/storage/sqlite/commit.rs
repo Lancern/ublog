@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Row};
+use rusqlite::{Connection, Row, ToSql};
 
 use crate::models::{Commit, CommitPayload};
 
@@ -52,22 +52,33 @@ pub(crate) fn get_commits(
 }
 
 pub(crate) fn insert_commit(conn: &Connection, commit: &Commit) -> Result<(), rusqlite::Error> {
-    const INSERT_SQL: &str = r#"
-        INSERT INTO commits (id, timestamp, prev_commit_id, payload)
-        VALUES (?, ?, ?, ?);
-    "#;
+    insert_commits(conn, std::slice::from_ref(commit))
+}
 
-    let payload_data = serialize_commit_payload(&commit.payload);
+pub(crate) fn insert_commits(conn: &Connection, commits: &[Commit]) -> Result<(), rusqlite::Error> {
+    let mut serialized_payload_data = Vec::with_capacity(commits.len());
+    for c in commits {
+        let payload = serialize_commit_payload(&c.payload);
+        serialized_payload_data.push(payload);
+    }
 
-    conn.execute(
-        INSERT_SQL,
-        (
-            &commit.id,
-            commit.timestamp,
-            &commit.prev_commit_id,
-            &payload_data,
-        ),
-    )?;
+    let mut commit_sql_params: Vec<&dyn ToSql> = Vec::with_capacity(commits.len() * 4);
+    for (c, payload_data) in commits.iter().zip(serialized_payload_data.iter()) {
+        commit_sql_params.push(&c.id);
+        commit_sql_params.push(&c.timestamp);
+        commit_sql_params.push(&c.prev_commit_id);
+        commit_sql_params.push(payload_data);
+    }
+
+    let insert_sql = format!(
+        r#"
+            INSERT INTO commits (id, timestamp, prev_commit_id, payload)
+            VALUES {};
+        "#,
+        vec!["(?, ?, ?, ?)"; commits.len()].join(","),
+    );
+    conn.execute(&insert_sql, commit_sql_params.as_slice())?;
+
     Ok(())
 }
 
