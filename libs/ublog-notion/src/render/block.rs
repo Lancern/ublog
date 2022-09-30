@@ -1,4 +1,4 @@
-use ublog_doc::{DocumentNode, DocumentNodeTag};
+use ublog_doc::{DocumentNode, DocumentNodeTag, DocumentResourceLink};
 
 use crate::api::block_tree::{BlockTree, BlockTreeNodeVariants};
 use crate::api::models::*;
@@ -94,7 +94,9 @@ fn render_image_block(b: &ImageBlock) -> DocumentNode {
     };
 
     DocumentNode::new(DocumentNodeTag::Image {
-        url: image_url.clone(),
+        link: DocumentResourceLink::External {
+            url: image_url.clone(),
+        },
         caption: None,
     })
 }

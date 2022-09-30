@@ -33,7 +33,7 @@ where
     }
 
     /// Insert the given post into the database.
-    pub async fn insert_post<T>(
+    pub async fn insert_post(
         &self,
         post: &Post,
         resources: &[PostResource],

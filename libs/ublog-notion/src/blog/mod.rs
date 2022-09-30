@@ -3,7 +3,10 @@ pub mod schema;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-use ublog_data::models::Post;
+use ublog_data::models::{Post, PostResource};
+use ublog_doc::{DocumentNode, DocumentNodeTag, DocumentNodeVisitor, DocumentResourceLink};
+use url::Url;
+use uuid::Uuid;
 
 use crate::api::{NotionApi, NotionApiError};
 
@@ -45,6 +48,45 @@ pub async fn get_post_content(
     Ok(())
 }
 
+/// Extract all referenced resources by the specified Notion post.
+///
+/// This function also updates the corresponding documentation node to refer to the extracted resources.
+pub async fn extract_notion_resources(
+    post: &mut NotionPost,
+) -> Result<Vec<PostResource>, NotionBlogError> {
+    #[derive(Default)]
+    struct Visitor {
+        resources: Vec<NotionResource>,
+    }
+
+    impl DocumentNodeVisitor for Visitor {
+        fn visit_mut(&mut self, node: &mut DocumentNode) {
+            if let Some((link, url)) = extract_notion_res_link_in_doc_node(node) {
+                if let Some(resource) = NotionResource::new(url) {
+                    let name = resource.name.clone();
+                    self.resources.push(resource);
+                    *link = DocumentResourceLink::Embedded { name };
+                }
+            }
+        }
+    }
+
+    let mut visitor = Visitor::default();
+    post.post.content.visit_mut(&mut visitor);
+
+    let resources = futures::future::join_all(
+        visitor
+            .resources
+            .into_iter()
+            .map(|res| fetch_notion_resource(&post.post.slug, res)),
+    )
+    .await
+    .into_iter()
+    .collect::<Result<_, _>>()?;
+
+    Ok(resources)
+}
+
 /// A post published via Notion.
 #[derive(Clone, Debug)]
 pub struct NotionPost {
@@ -63,6 +105,9 @@ pub enum NotionBlogError {
 
     /// Notion database schema validation errors.
     InvalidSchema(InvalidSchemaError),
+
+    /// Error originating from the HTTP client.
+    Http(reqwest::Error),
 }
 
 impl Display for NotionBlogError {
@@ -70,9 +115,12 @@ impl Display for NotionBlogError {
         match self {
             Self::NotionApi(err) => write!(f, "Notion API error: {}", err),
             Self::InvalidSchema(err) => write!(f, "schema validation failed: {}", err),
+            Self::Http(err) => write!(f, "HTTP error: {}", err),
         }
     }
 }
+
+impl Error for NotionBlogError {}
 
 impl From<NotionApiError> for NotionBlogError {
     fn from(err: NotionApiError) -> Self {
@@ -83,6 +131,12 @@ impl From<NotionApiError> for NotionBlogError {
 impl From<InvalidSchemaError> for NotionBlogError {
     fn from(err: InvalidSchemaError) -> Self {
         Self::InvalidSchema(err)
+    }
+}
+
+impl From<reqwest::Error> for NotionBlogError {
+    fn from(err: reqwest::Error) -> Self {
+        Self::Http(err)
     }
 }
 
@@ -170,3 +224,70 @@ impl Display for InvalidSchemaPropertyTypeError {
 }
 
 impl Error for InvalidSchemaPropertyTypeError {}
+
+fn extract_notion_res_link_in_doc_node(
+    node: &mut DocumentNode,
+) -> Option<(&mut DocumentResourceLink, String)> {
+    macro_rules! return_notion_link {
+        ( $link:expr ) => {
+            if let DocumentResourceLink::External { url } = $link {
+                let url = url.clone();
+                return Some(($link, url));
+            }
+        };
+    }
+
+    if let DocumentNodeTag::Image { link, .. } = &mut node.tag {
+        return_notion_link!(link);
+    }
+
+    None
+}
+
+struct NotionResource {
+    url: String,
+    name: String,
+}
+
+impl NotionResource {
+    fn new<T>(url: T) -> Option<Self>
+    where
+        T: Into<String>,
+    {
+        let url_str = url.into();
+
+        let url = Url::parse(&url_str).ok()?;
+        let name = url
+            .path_segments()
+            .and_then(|seg_iter| seg_iter.rev().next().map(String::from))
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+        Some(Self { url: url_str, name })
+    }
+}
+
+async fn fetch_notion_resource<T>(
+    post_slug: T,
+    resource: NotionResource,
+) -> Result<PostResource, reqwest::Error>
+where
+    T: Into<String>,
+{
+    let post_slug = post_slug.into();
+
+    let response = reqwest::get(&resource.url).await?;
+    let content_type = response
+        .headers()
+        .get("Content-Type")
+        .and_then(|value| value.to_str().ok())
+        .map(String::from)
+        .unwrap_or_else(|| String::from("application/octet-stream"));
+    let data = response.bytes().await?.into_iter().collect();
+
+    Ok(PostResource {
+        post_slug,
+        name: resource.name,
+        ty: content_type,
+        data,
+    })
+}

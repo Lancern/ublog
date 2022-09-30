@@ -27,6 +27,28 @@ impl DocumentNode {
     pub fn new_empty() -> Self {
         Self::new(DocumentNodeTag::Root)
     }
+
+    /// Visit all nodes in the document tree rooted at this document node.
+    pub fn visit<V>(&self, visitor: &mut V)
+    where
+        V: ?Sized + DocumentNodeVisitor,
+    {
+        visitor.visit(self);
+        for child in &self.children {
+            child.visit(visitor);
+        }
+    }
+
+    /// Visit all nodes in the document tree rooted at this document node.
+    pub fn visit_mut<V>(&mut self, visitor: &mut V)
+    where
+        V: ?Sized + DocumentNodeVisitor,
+    {
+        visitor.visit_mut(self);
+        for child in &mut self.children {
+            child.visit_mut(visitor);
+        }
+    }
 }
 
 /// A document tree node's tag.
@@ -71,7 +93,7 @@ pub enum DocumentNodeTag {
 
     #[serde(rename = "image")]
     Image {
-        url: String,
+        link: DocumentResourceLink,
         caption: Option<String>,
     },
 
@@ -100,6 +122,16 @@ pub enum DocumentNodeTag {
     InlineEquation { expr: String },
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "type")]
+pub enum DocumentResourceLink {
+    #[serde(rename = "external")]
+    External { url: String },
+
+    #[serde(rename = "embedded")]
+    Embedded { name: String },
+}
+
 /// Style settings of an inlined document tree element.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct InlineStyle {
@@ -112,7 +144,14 @@ pub struct InlineStyle {
 }
 
 impl InlineStyle {
+    /// Create a default `InlineStyle` value.
     pub fn new() -> Self {
         Self::default()
     }
+}
+
+/// Visitor that visits each document node within a document tree.
+pub trait DocumentNodeVisitor {
+    fn visit(&mut self, _node: &DocumentNode) {}
+    fn visit_mut(&mut self, _node: &mut DocumentNode) {}
 }
