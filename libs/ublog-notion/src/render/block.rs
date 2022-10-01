@@ -90,8 +90,8 @@ fn render_code_block(b: &CodeBlock) -> DocumentNode {
     node
 }
 
-fn render_image_block(b: &ImageBlock) -> DocumentNode {
-    let image_url = match &b.image {
+fn render_image_block(image_file: &File) -> DocumentNode {
+    let image_url = match &image_file {
         File::ExternalFile { external } => &external.url,
         File::NotionHostedFile { file } => &file.url,
     };

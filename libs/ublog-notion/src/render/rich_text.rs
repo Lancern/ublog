@@ -7,7 +7,10 @@ pub fn render_rich_text_array<'a, T>(rt: T) -> DocumentNode
 where
     T: IntoIterator<Item = &'a RichText>,
 {
-    let mut node = DocumentNode::new(DocumentNodeTag::Inline { style: None });
+    let mut node = DocumentNode::new(DocumentNodeTag::Inline {
+        style: None,
+        link: None,
+    });
     node.children = rt.into_iter().map(render_rich_text).collect();
     node
 }
@@ -25,7 +28,7 @@ pub fn render_rich_text(rt: &RichText) -> DocumentNode {
         RichTextVariants::Equation { equation } => render_equation_rich_text(equation),
     };
 
-    render_style(&rt.annotations, rendered)
+    render_style(&rt.annotations, &rt.href, rendered)
 }
 
 /// Render the given rich text into plain text, discarding any style settings.
@@ -60,7 +63,11 @@ fn render_equation_rich_text(rt: &EquationRichText) -> DocumentNode {
     })
 }
 
-fn render_style(annot: &RichTextAnnotations, inner_rendered: DocumentNode) -> DocumentNode {
+fn render_style(
+    annot: &RichTextAnnotations,
+    link: &Option<String>,
+    inner_rendered: DocumentNode,
+) -> DocumentNode {
     let mut style = InlineStyle::new();
 
     if annot.bold {
@@ -79,10 +86,14 @@ fn render_style(annot: &RichTextAnnotations, inner_rendered: DocumentNode) -> Do
         style.strike_through = true;
     }
 
-    if style == InlineStyle::new() {
+    if style == InlineStyle::new() && link.is_none() {
         inner_rendered
     } else {
-        let mut wrapper = DocumentNode::new(DocumentNodeTag::Inline { style: Some(style) });
+        let link = link.clone();
+        let mut wrapper = DocumentNode::new(DocumentNodeTag::Inline {
+            style: Some(style),
+            link,
+        });
         wrapper.children = vec![inner_rendered];
         wrapper
     }

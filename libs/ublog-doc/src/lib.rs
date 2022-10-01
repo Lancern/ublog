@@ -110,7 +110,10 @@ pub enum DocumentNodeTag {
     Divider,
 
     #[serde(rename = "inline")]
-    Inline { style: Option<InlineStyle> },
+    Inline {
+        style: Option<InlineStyle>,
+        link: Option<String>,
+    },
 
     #[serde(rename = "inlineText")]
     InlineText { text: String },

@@ -7,7 +7,6 @@ use lazy_static::lazy_static;
 use spdlog::Logger;
 use ublog_data::models::{Post, PostResource};
 use ublog_doc::{DocumentNode, DocumentNodeTag, DocumentNodeVisitor, DocumentResourceLink};
-use url::Url;
 use uuid::Uuid;
 
 use crate::api::{NotionApi, NotionApiError};
@@ -280,15 +279,10 @@ impl NotionResource {
     where
         T: Into<String>,
     {
-        let url_str = url.into();
+        let url = url.into();
+        let name = Uuid::new_v4().to_string();
 
-        let url = Url::parse(&url_str).ok()?;
-        let name = url
-            .path_segments()
-            .and_then(|seg_iter| seg_iter.rev().next().map(String::from))
-            .unwrap_or_else(|| Uuid::new_v4().to_string());
-
-        Some(Self { url: url_str, name })
+        Some(Self { url, name })
     }
 }
 

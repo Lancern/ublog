@@ -112,7 +112,7 @@ pub struct RichTextAnnotations {
 pub struct TextRichText {
     pub content: String,
     #[serde(default)]
-    pub link: Option<String>,
+    pub link: Option<Link>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -121,11 +121,15 @@ pub struct EquationRichText {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Link {
+    pub url: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Block {
     pub id: String,
     pub created_time: String,
     pub last_edited_time: String,
-    pub last_edited_by: String,
     pub archived: bool,
     pub has_children: bool,
     #[serde(flatten)]
@@ -163,7 +167,7 @@ pub enum BlockVariants {
     Code { code: CodeBlock },
 
     #[serde(rename = "image")]
-    Image { image: ImageBlock },
+    Image { image: File },
 
     #[serde(rename = "equation")]
     Equation { equation: EquationBlock },
@@ -217,11 +221,6 @@ pub struct CodeBlock {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ImageBlock {
-    pub image: File,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EquationBlock {
     pub expression: String,
 }
@@ -270,12 +269,4 @@ pub struct NotionHostedFile {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ExternalFile {
     pub url: String,
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_database_deserialize() {
-        todo!()
-    }
 }
