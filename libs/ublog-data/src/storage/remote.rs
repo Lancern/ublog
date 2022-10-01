@@ -65,6 +65,12 @@ where
             } => {
                 process_request!(self, self.inner.insert_post(&*post, &*post_resources));
             }
+            Request::UpdatePost {
+                post,
+                post_resources,
+            } => {
+                process_request!(self, self.inner.update_post(&*post, &*post_resources));
+            }
             Request::DeletePost { post_slug } => {
                 process_request!(self, self.inner.delete_post(&*post_slug));
             }
@@ -169,6 +175,18 @@ where
         post_resources: &[PostResource],
     ) -> Result<(), Self::Error> {
         self.execute_request(&Request::InsertPost {
+            post: Cow::Borrowed(post),
+            post_resources: Cow::Borrowed(post_resources),
+        })
+        .await
+    }
+
+    async fn update_post(
+        &self,
+        post: &Post,
+        post_resources: &[PostResource],
+    ) -> Result<(), Self::Error> {
+        self.execute_request(&Request::UpdatePost {
             post: Cow::Borrowed(post),
             post_resources: Cow::Borrowed(post_resources),
         })
@@ -287,6 +305,10 @@ impl From<std::io::Error> for RemoteStorageError {
 #[derive(Debug, Deserialize, Serialize)]
 enum Request<'a> {
     InsertPost {
+        post: Cow<'a, Post>,
+        post_resources: Cow<'a, [PostResource]>,
+    },
+    UpdatePost {
         post: Cow<'a, Post>,
         post_resources: Cow<'a, [PostResource]>,
     },

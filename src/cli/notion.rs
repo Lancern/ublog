@@ -143,7 +143,10 @@ async fn update_post<S>(
 where
     S: Storage,
 {
-    // TODO: update post into the database.
+    fallible_step!(
+        format!("update post {}", post.post.slug),
+        db.update_post(&post.post, resources).await
+    );
 
     spdlog::info!("Updated post: {} - {}", post.post.slug, post.notion_page_id);
     for r in resources {

@@ -41,6 +41,15 @@ where
         self.storage.insert_post(post, resources).await
     }
 
+    /// Update the given post into the database.
+    pub async fn update_post(
+        &self,
+        post: &Post,
+        resources: &[PostResource],
+    ) -> Result<(), S::Error> {
+        self.storage.update_post(post, resources).await
+    }
+
     /// Delete the post object with the given slug.
     pub async fn delete_post<T>(&self, slug: T) -> Result<(), S::Error>
     where

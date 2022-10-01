@@ -46,24 +46,29 @@ impl SqliteStorage {
         self.conn.lock().unwrap()
     }
 
-    fn transact_and_commit<F>(
+    fn transact_and_commit<T, F>(
         &self,
-        commit_payload: CommitPayload,
+        commit_payloads: T,
         transact: F,
     ) -> Result<(), rusqlite::Error>
     where
+        T: IntoIterator<Item = CommitPayload>,
         F: FnOnce(&Connection) -> Result<(), rusqlite::Error>,
     {
         let mut conn = self.lock();
         let trans = conn.transaction()?;
 
         let last_commit = crate::storage::sqlite::commit::get_latest_commit(&*trans)?;
-        let last_commit_id = last_commit.map(|commit| commit.id).unwrap_or_default();
+        let mut last_commit_id = last_commit.map(|commit| commit.id).unwrap_or_default();
 
         transact(&*trans)?;
 
-        let commit = Commit::new(last_commit_id, commit_payload);
-        crate::storage::sqlite::commit::insert_commit(&*trans, &commit)?;
+        for payload in commit_payloads {
+            let commit = Commit::new(last_commit_id, payload);
+            last_commit_id = commit.id.clone();
+
+            crate::storage::sqlite::commit::insert_commit(&*trans, &commit)?;
+        }
 
         trans.commit()?;
 
@@ -81,14 +86,30 @@ impl Storage for SqliteStorage {
         post_resources: &[PostResource],
     ) -> Result<(), Self::Error> {
         let commit_payload = CommitPayload::create_post(post.slug.clone());
-        self.transact_and_commit(commit_payload, |conn| {
+        self.transact_and_commit([commit_payload], |conn| {
             crate::storage::sqlite::post::insert_post(conn, post, post_resources)
+        })
+    }
+
+    async fn update_post(
+        &self,
+        post: &Post,
+        post_resources: &[PostResource],
+    ) -> Result<(), Self::Error> {
+        let commit_payloads = [
+            CommitPayload::delete_post(post.slug.clone()),
+            CommitPayload::create_post(post.slug.clone()),
+        ];
+        self.transact_and_commit(commit_payloads, |conn| {
+            crate::storage::sqlite::post::delete_post(conn, &post.slug)?;
+            crate::storage::sqlite::post::insert_post(conn, post, post_resources)?;
+            Ok(())
         })
     }
 
     async fn delete_post(&self, post_slug: &str) -> Result<(), Self::Error> {
         let commit_payload = CommitPayload::delete_post(post_slug);
-        self.transact_and_commit(commit_payload, |conn| {
+        self.transact_and_commit([commit_payload], |conn| {
             crate::storage::sqlite::post::delete_post(&*conn, post_slug)
         })
     }
@@ -122,14 +143,14 @@ impl Storage for SqliteStorage {
 
     async fn insert_resource(&self, resource: &Resource) -> Result<(), Self::Error> {
         let commit_payload = CommitPayload::create_resource(resource.name.clone());
-        self.transact_and_commit(commit_payload, |conn| {
+        self.transact_and_commit([commit_payload], |conn| {
             crate::storage::sqlite::resource::insert_resource(conn, resource)
         })
     }
 
     async fn delete_resource(&self, resource_name: &str) -> Result<(), Self::Error> {
         let commit_payload = CommitPayload::delete_resource(resource_name);
-        self.transact_and_commit(commit_payload, |conn| {
+        self.transact_and_commit([commit_payload], |conn| {
             crate::storage::sqlite::resource::delete_resource(conn, resource_name)
         })
     }

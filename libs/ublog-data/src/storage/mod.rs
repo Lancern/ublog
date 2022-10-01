@@ -19,6 +19,11 @@ pub trait Storage: Send + Sync {
         post: &Post,
         post_resources: &[PostResource],
     ) -> Result<(), Self::Error>;
+    async fn update_post(
+        &self,
+        post: &Post,
+        post_resources: &[PostResource],
+    ) -> Result<(), Self::Error>;
     async fn delete_post(&self, post_slug: &str) -> Result<(), Self::Error>;
     async fn get_post(&self, post_slug: &str) -> Result<Option<Post>, Self::Error>;
     async fn get_post_with_resources(
