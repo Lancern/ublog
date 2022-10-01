@@ -3,12 +3,13 @@ pub mod models;
 mod requests;
 
 use std::error::Error;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::future::Future;
 
 use async_recursion::async_recursion;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
+use spdlog::Logger;
 
 use crate::api::block_tree::RawBlockTree;
 use crate::api::models::{Block, Database, Page};
@@ -18,8 +19,8 @@ use crate::api::requests::NotionRequestExecutor;
 pub type NotionApiResult<T> = Result<T, NotionApiError>;
 
 /// Provide access to the Notion public API.
-#[derive(Debug)]
 pub struct NotionApi {
+    logger: Logger,
     exec: NotionRequestExecutor,
 }
 
@@ -32,6 +33,7 @@ impl NotionApi {
         T: Into<String>,
     {
         Self {
+            logger: crate::create_logger("NotionApi"),
             exec: NotionRequestExecutor::new(token),
         }
     }
@@ -42,6 +44,8 @@ impl NotionApi {
         T: AsRef<str>,
     {
         let database_id = database_id.as_ref();
+        spdlog::trace!(logger: self.logger, "get database: {}", database_id);
+
         let url = format!("{}/v1/databases/{}", Self::BASE_URL, database_id);
         let request = self.exec.build_notion_request(Method::GET, url).build()?;
         let db = self.exec.execute(request).await?.json().await?;
@@ -58,7 +62,9 @@ impl NotionApi {
         T: AsRef<str>,
     {
         let database_id = database_id.as_ref();
-        let url = format!("{}/v1/database/{}/query", Self::BASE_URL, database_id);
+        spdlog::trace!(logger: self.logger, "query database: {}", database_id);
+
+        let url = format!("{}/v1/databases/{}/query", Self::BASE_URL, database_id);
 
         self.get_paginated_list(|pagination| {
             let params = params.clone();
@@ -83,6 +89,8 @@ impl NotionApi {
         T: AsRef<str>,
     {
         let block_id = block_id.as_ref();
+        spdlog::trace!(logger: self.logger, "get block: {}", block_id);
+
         let url = format!("{}/v1/blocks/{}", Self::BASE_URL, block_id);
         let request = self.exec.build_notion_request(Method::GET, url).build()?;
         let block = self.exec.execute(request).await?.json().await?;
@@ -95,6 +103,8 @@ impl NotionApi {
         T: AsRef<str>,
     {
         let block_id = block_id.as_ref();
+        spdlog::trace!(logger: self.logger, "get block children: {}", block_id);
+
         let url = format!("{}/v1/blocks/{}/children", Self::BASE_URL, block_id);
 
         self.get_paginated_list(|pagination| {
@@ -124,6 +134,8 @@ impl NotionApi {
         T: AsRef<str>,
     {
         let root_block_id = root_block_id.as_ref();
+        spdlog::trace!(logger: self.logger, "get block tree: {}", root_block_id);
+
         let root_block = self.get_block(root_block_id).await?;
         self.get_block_tree_impl(root_block).await
     }
@@ -134,6 +146,7 @@ impl NotionApi {
         T: AsRef<str>,
     {
         let page_id = page_id.as_ref();
+        spdlog::trace!(logger: self.logger, "get page content: {}", page_id);
 
         let direct_blocks = self.get_block_children(page_id).await?;
         let get_tree_futures = direct_blocks
@@ -188,6 +201,14 @@ impl NotionApi {
             .collect::<Result<_, _>>()?;
 
         Ok(tree)
+    }
+}
+
+impl Debug for NotionApi {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NotionApi")
+            .field("exec", &self.exec)
+            .finish()
     }
 }
 
@@ -346,6 +367,7 @@ pub enum QueryDatabaseCheckboxFilter {
 
 #[derive(Clone, Debug, Serialize)]
 struct NotionPagination {
+    #[serde(skip_serializing_if = "Option::is_none")]
     start_cursor: Option<String>,
     page_size: u64,
 }

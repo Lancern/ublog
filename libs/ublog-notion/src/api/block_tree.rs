@@ -152,8 +152,9 @@ fn normalize_as_children(raw: Vec<RawBlockTree>, root: &mut BlockTree) {
 
         let block = tree.block().unwrap();
         match (&block.variant, active_tree.as_ref().map(|t| &t.variant)) {
-            (BlockVariants::BulletedListItem(_), Some(BlockTreeNodeVariants::BulletedList))
-            | (BlockVariants::NumberedListItem(_), Some(BlockTreeNodeVariants::NumberedList)) => {
+            (BlockVariants::BulletedListItem { .. }, Some(BlockTreeNodeVariants::BulletedList))
+            | (BlockVariants::NumberedListItem { .. }, Some(BlockTreeNodeVariants::NumberedList)) =>
+            {
                 active_tree.as_mut().unwrap().children.push(tree);
                 continue;
             }
@@ -165,8 +166,8 @@ fn normalize_as_children(raw: Vec<RawBlockTree>, root: &mut BlockTree) {
         }
 
         let mut list_node = match &block.variant {
-            BlockVariants::BulletedListItem(_) => BlockTree::new_bulleted_list(),
-            BlockVariants::NumberedListItem(_) => BlockTree::new_numbered_list(),
+            BlockVariants::BulletedListItem { .. } => BlockTree::new_bulleted_list(),
+            BlockVariants::NumberedListItem { .. } => BlockTree::new_numbered_list(),
             _ => {
                 root.children.push(tree);
                 continue;

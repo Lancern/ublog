@@ -21,13 +21,13 @@ pub(crate) async fn fetch_notion(args: &FetchNotionArgs) -> Result<(), Box<dyn E
         "fetch posts list",
         ublog_notion::blog::get_posts(&notion_api, &args.notion_database_id).await
     );
-    println!(
+    spdlog::info!(
         "{} posts listed in the target Notion database.",
         posts.len()
     );
 
     let new_posts = filter_new_posts(posts, &db).await?;
-    println!("{} new posts found.", new_posts.len());
+    spdlog::info!("{} new posts found.", new_posts.len());
 
     futures::future::join_all(new_posts.into_iter().map(|post| insert_post(post, &db)))
         .await
@@ -77,11 +77,13 @@ where
         db.insert_post(&post.post, &resources).await
     );
 
-    println!("New post: {} - {}", post.post.slug, post.notion_page_id);
+    spdlog::info!("New post: {} - {}", post.post.slug, post.notion_page_id);
     for r in &resources {
-        println!(
+        spdlog::info!(
             "New post resource: {}/{} - {}",
-            post.post.slug, r.name, r.ty
+            post.post.slug,
+            r.name,
+            r.ty
         );
     }
 

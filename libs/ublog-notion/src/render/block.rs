@@ -27,21 +27,24 @@ pub fn render_block_tree(bt: &BlockTree) -> DocumentNode {
 /// Render a Notion block into a document tree node.
 pub fn render_block(b: &Block) -> DocumentNode {
     match &b.variant {
-        BlockVariants::Paragraph(para) => render_paragraph_block(para),
-        BlockVariants::Heading1(heading) => render_heading_block(heading, 1),
-        BlockVariants::Heading2(heading) => render_heading_block(heading, 2),
-        BlockVariants::Heading3(heading) => render_heading_block(heading, 3),
-        BlockVariants::Callout(callout) => render_callout_block(callout),
-        BlockVariants::Quote(quote) => render_quote_block(quote),
-        BlockVariants::BulletedListItem(list_item) | BlockVariants::NumberedListItem(list_item) => {
-            render_list_item_block(list_item)
+        BlockVariants::Paragraph { paragraph } => render_paragraph_block(paragraph),
+        BlockVariants::Heading1 { heading_1 } => render_heading_block(heading_1, 1),
+        BlockVariants::Heading2 { heading_2 } => render_heading_block(heading_2, 2),
+        BlockVariants::Heading3 { heading_3 } => render_heading_block(heading_3, 3),
+        BlockVariants::Callout { callout } => render_callout_block(callout),
+        BlockVariants::Quote { quote } => render_quote_block(quote),
+        BlockVariants::BulletedListItem { bulleted_list_item } => {
+            render_list_item_block(bulleted_list_item)
         }
-        BlockVariants::Code(code) => render_code_block(code),
-        BlockVariants::Image(image) => render_image_block(image),
-        BlockVariants::Equation(equation) => render_equation_block(equation),
+        BlockVariants::NumberedListItem { numbered_list_item } => {
+            render_list_item_block(numbered_list_item)
+        }
+        BlockVariants::Code { code } => render_code_block(code),
+        BlockVariants::Image { image } => render_image_block(image),
+        BlockVariants::Equation { equation } => render_equation_block(equation),
         BlockVariants::Divider => render_divider_block(),
-        BlockVariants::Table(table) => render_table_block(table),
-        BlockVariants::TableRow(table_row) => render_table_row_block(table_row),
+        BlockVariants::Table { table } => render_table_block(table),
+        BlockVariants::TableRow { table_row } => render_table_row_block(table_row),
     }
 }
 
@@ -57,7 +60,7 @@ fn render_heading_block(b: &HeadingBlock, level: i32) -> DocumentNode {
 
 fn render_callout_block(b: &CalloutBlock) -> DocumentNode {
     let emoji = match &b.icon {
-        FileOrEmoji::Emoji(emoji) => Some(emoji.clone()),
+        FileOrEmoji::Emoji { emoji } => Some(emoji.clone()),
         _ => None,
     };
 
@@ -89,8 +92,8 @@ fn render_code_block(b: &CodeBlock) -> DocumentNode {
 
 fn render_image_block(b: &ImageBlock) -> DocumentNode {
     let image_url = match &b.image {
-        File::ExternalFile { url } => url,
-        File::NotionHostedFile { url } => url,
+        File::ExternalFile { external } => &external.url,
+        File::NotionHostedFile { file } => &file.url,
     };
 
     DocumentNode::new(DocumentNodeTag::Image {

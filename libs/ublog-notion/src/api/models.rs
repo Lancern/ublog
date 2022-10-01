@@ -6,9 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct Database {
     pub id: String,
     pub created_time: String,
-    pub created_by: User,
     pub last_edited_time: String,
-    pub last_edited_by: User,
     pub title: Vec<RichText>,
     pub description: Vec<RichText>,
     pub icon: FileOrEmoji,
@@ -31,45 +29,37 @@ pub struct Property {
 pub struct Page {
     pub id: String,
     pub created_time: String,
-    pub created_by: User,
     pub last_edited_time: String,
-    pub last_edited_by: User,
     pub archived: bool,
     pub properties: HashMap<String, PropertyValue>,
     pub url: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct User {
-    pub id: String,
-    #[serde(rename = "type")]
-    pub ty: String,
-    pub name: String,
-    pub avatar_url: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "type")]
 pub enum PropertyValue {
     #[serde(rename = "title")]
-    Title(Vec<RichText>),
+    Title { title: Vec<RichText> },
 
     #[serde(rename = "rich_text")]
-    RichText(Vec<RichText>),
+    RichText { rich_text: Vec<RichText> },
 
     #[serde(rename = "number")]
-    Number(f64),
+    Number { number: f64 },
 
     #[serde(rename = "select")]
-    Select(SelectPropertyValue),
+    Select { select: SelectPropertyValue },
 
     #[serde(rename = "multi_select")]
-    MultiSelect(Vec<SelectPropertyValue>),
+    MultiSelect {
+        multi_select: Vec<SelectPropertyValue>,
+    },
 
     #[serde(rename = "date")]
-    Date(DatePropertyValue),
+    Date { date: DatePropertyValue },
 
     #[serde(rename = "checkbox")]
-    Checkbox(bool),
+    Checkbox { checkbox: bool },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -99,12 +89,13 @@ pub struct RichText {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "type")]
 pub enum RichTextVariants {
     #[serde(rename = "text")]
-    Text(TextRichText),
+    Text { text: TextRichText },
 
     #[serde(rename = "equation")]
-    Equation(EquationRichText),
+    Equation { equation: EquationRichText },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -133,7 +124,6 @@ pub struct EquationRichText {
 pub struct Block {
     pub id: String,
     pub created_time: String,
-    pub created_by: User,
     pub last_edited_time: String,
     pub last_edited_by: String,
     pub archived: bool,
@@ -143,48 +133,49 @@ pub struct Block {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "type")]
 pub enum BlockVariants {
     #[serde(rename = "paragraph")]
-    Paragraph(ParagraphBlock),
+    Paragraph { paragraph: ParagraphBlock },
 
     #[serde(rename = "heading_1")]
-    Heading1(HeadingBlock),
+    Heading1 { heading_1: HeadingBlock },
 
     #[serde(rename = "heading_2")]
-    Heading2(HeadingBlock),
+    Heading2 { heading_2: HeadingBlock },
 
     #[serde(rename = "heading_3")]
-    Heading3(HeadingBlock),
+    Heading3 { heading_3: HeadingBlock },
 
     #[serde(rename = "callout")]
-    Callout(CalloutBlock),
+    Callout { callout: CalloutBlock },
 
     #[serde(rename = "quote")]
-    Quote(QuoteBlock),
+    Quote { quote: QuoteBlock },
 
     #[serde(rename = "bulleted_list_item")]
-    BulletedListItem(ListItemBlock),
+    BulletedListItem { bulleted_list_item: ListItemBlock },
 
     #[serde(rename = "numbered_list_item")]
-    NumberedListItem(ListItemBlock),
+    NumberedListItem { numbered_list_item: ListItemBlock },
 
     #[serde(rename = "code")]
-    Code(CodeBlock),
+    Code { code: CodeBlock },
 
     #[serde(rename = "image")]
-    Image(ImageBlock),
+    Image { image: ImageBlock },
 
     #[serde(rename = "equation")]
-    Equation(EquationBlock),
+    Equation { equation: EquationBlock },
 
     #[serde(rename = "divider")]
     Divider,
 
     #[serde(rename = "table")]
-    Table(TableBlock),
+    Table { table: TableBlock },
 
     #[serde(rename = "table_row")]
-    TableRow(TableRowBlock),
+    TableRow { table_row: TableRowBlock },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -248,19 +239,43 @@ pub struct TableRowBlock {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "type")]
 pub enum File {
     #[serde(rename = "file")]
-    NotionHostedFile { url: String },
+    NotionHostedFile { file: NotionHostedFile },
+
     #[serde(rename = "external")]
-    ExternalFile { url: String },
+    ExternalFile { external: ExternalFile },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "type")]
 pub enum FileOrEmoji {
     #[serde(rename = "file")]
-    NotionHostedFile { url: String },
+    NotionHostedFile { file: NotionHostedFile },
+
     #[serde(rename = "external")]
-    ExternalFile { url: String },
+    ExternalFile { external: ExternalFile },
+
     #[serde(rename = "emoji")]
-    Emoji(String),
+    Emoji { emoji: String },
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct NotionHostedFile {
+    pub url: String,
+    pub expiry_time: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ExternalFile {
+    pub url: String,
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_database_deserialize() {
+        todo!()
+    }
 }

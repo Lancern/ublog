@@ -1,7 +1,12 @@
 mod cli;
 
-use std::{error::Error, path::PathBuf};
+use std::error::Error;
+use std::path::PathBuf;
+use std::sync::Arc;
 
+use spdlog::sink::{StdStream, StdStreamSink};
+use spdlog::terminal_style::StyleMode;
+use spdlog::{Level, LevelFilter, LoggerBuilder};
 use structopt::StructOpt;
 use tokio::runtime::Runtime;
 
@@ -30,6 +35,8 @@ fn main() {
 fn main_impl() -> Result<(), Box<dyn Error>> {
     let args = UblogArgs::from_args();
 
+    fallible_step!("initialize logger", init_logger(args.debug()));
+
     let runtime = fallible_step!("initialize async runtime", Runtime::new());
     runtime.block_on(async {
         match args {
@@ -49,6 +56,14 @@ enum UblogArgs {
     FetchNotion(FetchNotionArgs),
 }
 
+impl UblogArgs {
+    fn debug(&self) -> bool {
+        match self {
+            Self::FetchNotion(args) => args.debug,
+        }
+    }
+}
+
 #[derive(Debug, StructOpt)]
 #[structopt(name = "fetch-notion", about = "Fetch content from Notion database")]
 struct FetchNotionArgs {
@@ -57,9 +72,33 @@ struct FetchNotionArgs {
     token: String,
 
     /// Path to the ublog database.
-    #[structopt(short, long)]
+    #[structopt(short, long, default_value = "ublog.db")]
     database: PathBuf,
 
     /// Target Notion database ID.
     notion_database_id: String,
+
+    /// Enable debug output.
+    #[structopt(long)]
+    debug: bool,
+}
+
+fn init_logger(debug: bool) -> Result<(), Box<dyn Error>> {
+    let mut logger_builder = LoggerBuilder::new();
+
+    logger_builder.sink(Arc::new(StdStreamSink::new(
+        StdStream::Stdout,
+        StyleMode::Auto,
+    )));
+
+    if debug {
+        logger_builder.level_filter(LevelFilter::All);
+    } else {
+        logger_builder.level_filter(LevelFilter::MoreSevereEqual(Level::Info));
+    }
+
+    let logger = logger_builder.build();
+    spdlog::set_default_logger(Arc::new(logger));
+
+    Ok(())
 }

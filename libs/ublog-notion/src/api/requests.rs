@@ -1,13 +1,15 @@
+use std::fmt::{Debug, Formatter};
 use std::time::Duration;
 
 use rand::Rng;
 use reqwest::{Client, IntoUrl, Method, Request, RequestBuilder, Response, StatusCode};
 use serde::{Deserialize, Serialize};
+use spdlog::Logger;
 
 use crate::api::{NotionApiError, NotionError};
 
-#[derive(Debug)]
 pub(super) struct NotionRequestExecutor {
+    logger: Logger,
     token: String,
     http_client: Client,
 }
@@ -19,6 +21,7 @@ impl NotionRequestExecutor {
     {
         let token = token.into();
         Self {
+            logger: crate::create_logger("NotionRequestExecutor"),
             token,
             http_client: Client::new(),
         }
@@ -38,11 +41,17 @@ impl NotionRequestExecutor {
     }
 
     pub(super) async fn execute(&self, mut req: Request) -> Result<Response, NotionApiError> {
+        let method = req.method().clone();
+        let url = req.url().clone();
+
+        spdlog::debug!(logger: self.logger, "-> {} {}", method.as_str(), url);
+
         loop {
             let request_backup = req.try_clone().unwrap();
 
             let response = self.http_client.execute(req).await?;
             let response_status = response.status();
+            spdlog::debug!(logger: self.logger, "<- {} {} {}", method.as_str(), url, response_status);
 
             if response_status.is_success() {
                 return Ok(response);
@@ -93,6 +102,15 @@ impl NotionRequestExecutor {
         };
 
         NotionApiError::Notion(error_model.into())
+    }
+}
+
+impl Debug for NotionRequestExecutor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NotionRequestExecutor")
+            .field("token", &self.token)
+            .field("http_client", &self.http_client)
+            .finish()
     }
 }
 

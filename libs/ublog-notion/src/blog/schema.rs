@@ -95,7 +95,7 @@ macro_rules! declare_property_desc {
 
 declare_property_desc!(TITLE_PROPERTY, title, Title);
 declare_property_desc!(SLUG_PROPERTY, slug, RichText);
-declare_property_desc!(AUTHOR_PROPERTY, author, People);
+declare_property_desc!(AUTHOR_PROPERTY, author, RichText);
 declare_property_desc!(CREATE_DATE_PROPERTY, create_date, Date);
 declare_property_desc!(UPDATE_DATE_PROPERTY, update_date, Date);
 declare_property_desc!(CATEGORY_PROPERTY, category, Select);
@@ -123,10 +123,13 @@ impl SchemaPropertyDescriptor {
     fn get_str_value(&self, page: &Page) -> String {
         let prop = self.get_property_value(page);
         match prop {
-            PropertyValue::Title(rt) | PropertyValue::RichText(rt) => {
-                crate::render::rich_text::render_rich_texts_to_plain_text(rt)
+            PropertyValue::Title { title } => {
+                crate::render::rich_text::render_rich_texts_to_plain_text(title)
             }
-            PropertyValue::Select(sel) => sel.name.clone(),
+            PropertyValue::RichText { rich_text } => {
+                crate::render::rich_text::render_rich_texts_to_plain_text(rich_text)
+            }
+            PropertyValue::Select { select } => select.name.clone(),
             _ => unreachable!(),
         }
     }
@@ -134,7 +137,9 @@ impl SchemaPropertyDescriptor {
     fn get_str_list_value(&self, page: &Page) -> Vec<String> {
         let prop = self.get_property_value(page);
         match prop {
-            PropertyValue::MultiSelect(sel) => sel.iter().map(|s| s.name.clone()).collect(),
+            PropertyValue::MultiSelect { multi_select } => {
+                multi_select.iter().map(|s| s.name.clone()).collect()
+            }
             _ => unreachable!(),
         }
     }
@@ -142,7 +147,7 @@ impl SchemaPropertyDescriptor {
     fn get_timestamp_value(&self, page: &Page) -> i64 {
         let prop = self.get_property_value(page);
         let date_prop = match prop {
-            PropertyValue::Date(date) => date,
+            PropertyValue::Date { date } => date,
             _ => unreachable!(),
         };
 
@@ -162,7 +167,6 @@ enum NotionPropertyTypes {
     Select,
     MultiSelect,
     Date,
-    People,
     Checkbox,
 }
 
@@ -174,7 +178,6 @@ impl NotionPropertyTypes {
             Self::Select => "select",
             Self::MultiSelect => "multi_select",
             Self::Date => "date",
-            Self::People => "people",
             Self::Checkbox => "checkbox",
         }
     }

@@ -3,12 +3,18 @@ pub mod schema;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
+use lazy_static::lazy_static;
+use spdlog::Logger;
 use ublog_data::models::{Post, PostResource};
 use ublog_doc::{DocumentNode, DocumentNodeTag, DocumentNodeVisitor, DocumentResourceLink};
 use url::Url;
 use uuid::Uuid;
 
 use crate::api::{NotionApi, NotionApiError};
+
+lazy_static! {
+    static ref LOGGER: Logger = crate::create_logger("NotionBlog");
+}
 
 /// Get a list of posts from the specified Notion database.
 ///
@@ -22,8 +28,14 @@ where
     T: AsRef<str>,
 {
     let posts_db_id = posts_db_id.as_ref();
+    spdlog::trace!(logger: LOGGER, "get posts: {}", posts_db_id);
 
     crate::blog::schema::validate_posts_db_schema(api, posts_db_id).await?;
+    spdlog::debug!(
+        logger: LOGGER,
+        "successfully validated Notion blog database schema for database {}",
+        posts_db_id
+    );
 
     let query_posts_params = crate::blog::schema::get_query_posts_db_params();
     let posts_pages = api.query_database(posts_db_id, &query_posts_params).await?;
@@ -40,6 +52,13 @@ pub async fn get_post_content(
     api: &NotionApi,
     post: &mut NotionPost,
 ) -> Result<(), NotionBlogError> {
+    spdlog::trace!(
+        logger: LOGGER,
+        "get post content: {} - {}",
+        post.post.slug,
+        post.notion_page_id
+    );
+
     let raw_content_trees = api.get_page_content(&post.notion_page_id).await?;
     let content_tree = crate::api::block_tree::normalize(raw_content_trees);
 
@@ -54,6 +73,13 @@ pub async fn get_post_content(
 pub async fn extract_notion_resources(
     post: &mut NotionPost,
 ) -> Result<Vec<PostResource>, NotionBlogError> {
+    spdlog::trace!(
+        logger: LOGGER,
+        "extract notion resources: {} - {}",
+        post.post.slug,
+        post.notion_page_id
+    );
+
     #[derive(Default)]
     struct Visitor {
         resources: Vec<NotionResource>,
@@ -274,6 +300,12 @@ where
     T: Into<String>,
 {
     let post_slug = post_slug.into();
+    spdlog::trace!(
+        "fetch notion resource: {}/{} from {}",
+        post_slug,
+        resource.name,
+        resource.url
+    );
 
     let response = reqwest::get(&resource.url).await?;
     let content_type = response
