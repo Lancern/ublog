@@ -45,10 +45,10 @@ pub(crate) fn get_commits(
     "#;
 
     let mut query_stmt = conn.prepare(SELECT_SQL).unwrap();
-    let ret = query_stmt
+    let commits = query_stmt
         .query_map((since_timestamp,), create_commit_from_row)?
-        .collect();
-    ret
+        .collect::<Result<_, _>>()?;
+    Ok(commits)
 }
 
 pub(crate) fn insert_commit(conn: &Connection, commit: &Commit) -> Result<(), rusqlite::Error> {

@@ -110,7 +110,7 @@ impl Storage for SqliteStorage {
     async fn delete_post(&self, post_slug: &str) -> Result<(), Self::Error> {
         let commit_payload = CommitPayload::delete_post(post_slug);
         self.transact_and_commit([commit_payload], |conn| {
-            crate::storage::sqlite::post::delete_post(&*conn, post_slug)
+            crate::storage::sqlite::post::delete_post(conn, post_slug)
         })
     }
 

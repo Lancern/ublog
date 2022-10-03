@@ -59,7 +59,7 @@ pub(super) fn get_post(
     };
 
     if let Some(post) = post.as_mut() {
-        populate_post_tags(&*conn, post)?;
+        populate_post_tags(conn, post)?;
     }
 
     Ok(post)
@@ -109,7 +109,7 @@ pub(super) fn get_posts(
     let mut posts = create_posts_from_rows(post_rows)?;
 
     for p in &mut posts {
-        populate_post_tags(&*conn, p)?;
+        populate_post_tags(conn, p)?;
     }
 
     Ok(posts)
