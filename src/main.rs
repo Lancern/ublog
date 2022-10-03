@@ -4,7 +4,7 @@ use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use spdlog::sink::{StdStream, StdStreamSink};
+use spdlog::sink::{FileSink, StdStream, StdStreamSink};
 use spdlog::terminal_style::StyleMode;
 use spdlog::{Level, LevelFilter, LoggerBuilder};
 use structopt::StructOpt;
@@ -35,12 +35,13 @@ fn main() {
 fn main_impl() -> Result<(), Box<dyn Error>> {
     let args = UblogArgs::from_args();
 
-    fallible_step!("initialize logger", init_logger(args.debug()));
+    fallible_step!("initialize logger", init_logger(args.log_args()));
 
     let runtime = fallible_step!("initialize async runtime", Runtime::new());
     runtime.block_on(async {
         match args {
             UblogArgs::FetchNotion(args) => crate::cli::notion::fetch_notion(&args).await,
+            UblogArgs::Serve(args) => crate::cli::server::serve(&args).await,
         }
     })
 }
@@ -54,12 +55,14 @@ fn main_impl() -> Result<(), Box<dyn Error>> {
 )]
 enum UblogArgs {
     FetchNotion(FetchNotionArgs),
+    Serve(ServerArgs),
 }
 
 impl UblogArgs {
-    fn debug(&self) -> bool {
+    fn log_args(&self) -> &LogArgs {
         match self {
-            Self::FetchNotion(args) => args.debug,
+            Self::FetchNotion(args) => &args.log,
+            Self::Serve(args) => &args.log,
         }
     }
 }
@@ -78,12 +81,47 @@ struct FetchNotionArgs {
     /// Target Notion database ID.
     notion_database_id: String,
 
+    #[structopt(flatten)]
+    log: LogArgs,
+}
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "serve", about = "Start ublog backend service")]
+struct ServerArgs {
+    /// The address the server binds to.
+    #[structopt(short, long, default_value = "127.0.0.1")]
+    addr: String,
+
+    /// The port the server listens on.
+    #[structopt(short, long, default_value = "8000")]
+    port: u16,
+
+    /// Path to the certificate file.
+    ///
+    /// If this argument is missing, an HTTP server will be started.
+    #[structopt(short, long)]
+    cert: Option<PathBuf>,
+
+    /// Path to the ublog database.
+    #[structopt(short, long, default_value = "ublog.db")]
+    database: PathBuf,
+
+    #[structopt(flatten)]
+    log: LogArgs,
+}
+
+#[derive(Debug, StructOpt)]
+struct LogArgs {
     /// Enable debug output.
     #[structopt(long)]
     debug: bool,
+
+    /// Path to the output log file.
+    #[structopt(long)]
+    log_file: Option<PathBuf>,
 }
 
-fn init_logger(debug: bool) -> Result<(), Box<dyn Error>> {
+fn init_logger(args: &LogArgs) -> Result<(), Box<dyn Error>> {
     let mut logger_builder = LoggerBuilder::new();
 
     logger_builder.sink(Arc::new(StdStreamSink::new(
@@ -91,7 +129,15 @@ fn init_logger(debug: bool) -> Result<(), Box<dyn Error>> {
         StyleMode::Auto,
     )));
 
-    if debug {
+    if let Some(log_file_path) = &args.log_file {
+        let file_sink = fallible_step!(
+            "initialize file log sink",
+            FileSink::new(log_file_path, true)
+        );
+        logger_builder.sink(Arc::new(file_sink));
+    }
+
+    if args.debug {
         logger_builder.level_filter(LevelFilter::All);
     } else {
         logger_builder.level_filter(LevelFilter::MoreSevereEqual(Level::Info));
@@ -99,6 +145,8 @@ fn init_logger(debug: bool) -> Result<(), Box<dyn Error>> {
 
     let logger = logger_builder.build();
     spdlog::set_default_logger(Arc::new(logger));
+
+    fallible_step!("initialize standard logger", spdlog::init_log_crate_proxy());
 
     Ok(())
 }

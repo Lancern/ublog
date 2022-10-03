@@ -59,6 +59,21 @@ where
         self.storage.delete_post(slug).await
     }
 
+    /// Get the specified post resource.
+    pub async fn get_post_resource<T1, T2>(
+        &self,
+        slug: T1,
+        name: T2,
+    ) -> Result<Option<PostResource>, S::Error>
+    where
+        T1: AsRef<str>,
+        T2: AsRef<str>,
+    {
+        let slug = slug.as_ref();
+        let name = name.as_ref();
+        self.storage.get_post_resource(slug, name).await
+    }
+
     /// Get the static resource object with the given name.
     pub async fn get_resource<N>(&self, name: N) -> Result<Option<Resource>, S::Error>
     where
