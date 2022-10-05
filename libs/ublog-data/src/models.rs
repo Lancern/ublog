@@ -5,6 +5,7 @@ use ublog_doc::DocumentNode;
 
 /// A blog post.
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Post {
     /// The post's title.
     pub title: String,

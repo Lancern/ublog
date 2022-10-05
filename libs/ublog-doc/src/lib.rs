@@ -70,9 +70,8 @@ pub enum DocumentNodeTag {
     #[serde(rename = "quote")]
     Quote,
 
-    #[serde(rename = "list")]
+    #[serde(rename = "list", rename_all = "camelCase")]
     List {
-        #[serde(rename = "isOrdered")]
         is_ordered: bool,
     },
 
@@ -137,11 +136,11 @@ pub enum DocumentResourceLink {
 
 /// Style settings of an inlined document tree element.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InlineStyle {
     pub bold: bool,
     pub italic: bool,
     pub underline: bool,
-    #[serde(rename = "strikethrough")]
     pub strike_through: bool,
     pub color: Option<String>,
 }

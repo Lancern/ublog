@@ -7,6 +7,7 @@ use axum::{Extension, Json, Router};
 use http::{HeaderMap, HeaderValue};
 use hyper::StatusCode;
 use serde::Deserialize;
+use tower_http::cors::{Any, CorsLayer};
 use ublog_data::models::{Post, PostResource, Resource};
 use ublog_data::storage::Pagination;
 
@@ -19,6 +20,7 @@ pub(super) fn create_router(ctx: Arc<ServerContext>) -> Router {
         .route("/api/posts/:slug", get(get_post))
         .route("/api/posts/:slug/resources/:name", get(get_post_resource))
         .route("/api/resources/:name", get(get_resource))
+        .layer(CorsLayer::new().allow_methods(Any).allow_origin(Any))
         .layer(Extension(ctx))
 }
 
