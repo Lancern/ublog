@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
 use ublog_doc::DocumentNode;
+use uuid::Uuid;
 
 /// A blog post.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -44,25 +45,12 @@ impl Post {
     }
 }
 
-/// A resource object that is attached to a post.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct PostResource {
-    /// Slug of the associated post.
-    pub post_slug: String,
-
-    /// Name of the resource.
-    pub name: String,
-
-    /// MIME type of the resource.
-    pub ty: String,
-
-    /// Data of the resource.
-    pub data: Vec<u8>,
-}
-
 /// A static resource.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Resource {
+    /// UUID of the resource.
+    pub id: Uuid,
+
     /// Name of the resource.
     pub name: String,
 
@@ -148,19 +136,13 @@ impl CommitPayload {
     }
 
     /// Create a new `CreateResource` commit payload.
-    pub fn create_resource<T>(name: T) -> Self
-    where
-        T: Into<String>,
-    {
-        Self::CreateResource(CreateResourceCommitPayload { name: name.into() })
+    pub fn create_resource(id: Uuid) -> Self {
+        Self::CreateResource(CreateResourceCommitPayload { id })
     }
 
     /// Create a new `DeleteResource` commit payload.
-    pub fn delete_resource<T>(name: T) -> Self
-    where
-        T: Into<String>,
-    {
-        Self::DeleteResource(DeleteResourceCommitPayload { name: name.into() })
+    pub fn delete_resource(id: Uuid) -> Self {
+        Self::DeleteResource(DeleteResourceCommitPayload { id })
     }
 }
 
@@ -176,20 +158,20 @@ pub struct DeletePostCommitPayload {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CreateResourceCommitPayload {
-    pub name: String,
+    pub id: Uuid,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DeleteResourceCommitPayload {
-    pub name: String,
+    pub id: Uuid,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Delta {
-    pub added_posts: Vec<(Post, Vec<PostResource>)>,
+    pub added_posts: Vec<(Post, Vec<Resource>)>,
     pub deleted_post_slugs: Vec<String>,
     pub added_resources: Vec<Resource>,
-    pub deleted_resource_names: Vec<String>,
+    pub deleted_resource_ids: Vec<Uuid>,
     pub commits: Vec<Commit>,
 }
 

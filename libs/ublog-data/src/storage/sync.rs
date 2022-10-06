@@ -102,8 +102,8 @@ where
 {
     let mut added_post_slugs = HashSet::new();
     let mut deleted_post_slugs = HashSet::new();
-    let mut added_resource_names = HashSet::new();
-    let mut deleted_resource_names = HashSet::new();
+    let mut added_resource_ids = HashSet::new();
+    let mut deleted_resource_ids = HashSet::new();
 
     for c in &commits {
         match &c.payload {
@@ -116,11 +116,11 @@ where
                 }
             }
             CommitPayload::CreateResource(payload) => {
-                added_resource_names.insert(payload.name.clone());
+                added_resource_ids.insert(payload.id);
             }
             CommitPayload::DeleteResource(payload) => {
-                if !added_resource_names.remove(&payload.name) {
-                    deleted_resource_names.insert(payload.name.clone());
+                if !added_resource_ids.remove(&payload.id) {
+                    deleted_resource_ids.insert(payload.id);
                 }
             }
         }
@@ -134,14 +134,14 @@ where
         }
     }
 
-    for name in &added_resource_names {
-        if let Some(resource) = storage.get_resource(name).await? {
+    for id in &added_resource_ids {
+        if let Some(resource) = storage.get_resource(id).await? {
             delta.added_resources.push(resource);
         }
     }
 
     delta.deleted_post_slugs = deleted_post_slugs.into_iter().collect();
-    delta.deleted_resource_names = deleted_resource_names.into_iter().collect();
+    delta.deleted_resource_ids = deleted_resource_ids.into_iter().collect();
 
     delta.commits = commits;
     Ok(delta)

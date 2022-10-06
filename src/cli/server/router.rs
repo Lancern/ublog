@@ -8,8 +8,9 @@ use http::{HeaderMap, HeaderValue};
 use hyper::StatusCode;
 use serde::Deserialize;
 use tower_http::cors::{Any, CorsLayer};
-use ublog_data::models::{Post, PostResource, Resource};
+use ublog_data::models::{Post, Resource};
 use ublog_data::storage::Pagination;
+use uuid::Uuid;
 
 use crate::cli::server::ServerContext;
 
@@ -18,8 +19,7 @@ pub(super) fn create_router(ctx: Arc<ServerContext>) -> Router {
     Router::new()
         .route("/api/posts", get(get_posts))
         .route("/api/posts/:slug", get(get_post))
-        .route("/api/posts/:slug/resources/:name", get(get_post_resource))
-        .route("/api/resources/:name", get(get_resource))
+        .route("/api/resources/:id", get(get_resource))
         .layer(CorsLayer::new().allow_methods(Any).allow_origin(Any))
         .layer(Extension(ctx))
 }
@@ -72,34 +72,21 @@ async fn get_post(
         .and_then(|post| post.ok_or(StatusCode::NOT_FOUND).map(Json))
 }
 
-async fn get_post_resource(
-    Extension(ctx): Extension<Arc<ServerContext>>,
-    Path((slug, name)): Path<(String, String)>,
-) -> Result<Blob, StatusCode> {
-    ctx.db
-        .get_post_resource(&slug, &name)
-        .await
-        .map_err(|err| {
-            spdlog::error!(
-                "Get post resource from database failed: {} (slug {}, name {})",
-                err,
-                slug,
-                name
-            );
-            StatusCode::INTERNAL_SERVER_ERROR
-        })
-        .and_then(|resource| resource.ok_or(StatusCode::NOT_FOUND).map(From::from))
-}
-
 async fn get_resource(
     Extension(ctx): Extension<Arc<ServerContext>>,
-    Path((name,)): Path<(String,)>,
+    Path((id,)): Path<(String,)>,
 ) -> Result<Blob, StatusCode> {
+    let id = Uuid::try_parse(&id)
+        .map_err(|_| {
+            spdlog::warn!("Invalid resource ID from client: {}", id);
+            StatusCode::BAD_REQUEST
+        })?;
+
     ctx.db
-        .get_resource(&name)
+        .get_resource(&id)
         .await
         .map_err(|err| {
-            spdlog::error!("Get resource from database failed: {} (name {})", err, name);
+            spdlog::error!("Get resource from database failed: {} (id {})", err, id);
             StatusCode::INTERNAL_SERVER_ERROR
         })
         .and_then(|resource| resource.ok_or(StatusCode::NOT_FOUND).map(From::from))
@@ -113,15 +100,6 @@ struct Blob {
 
 impl From<Resource> for Blob {
     fn from(res: Resource) -> Self {
-        Self {
-            content_type: res.ty,
-            data: res.data,
-        }
-    }
-}
-
-impl From<PostResource> for Blob {
-    fn from(res: PostResource) -> Self {
         Self {
             content_type: res.ty,
             data: res.data,

@@ -82,6 +82,7 @@ pub enum DocumentNodeTag {
     Code {
         language: String,
         caption: Option<String>,
+        code: String,
     },
 
     #[serde(rename = "equation")]
@@ -131,7 +132,7 @@ pub enum DocumentResourceLink {
     External { url: String },
 
     #[serde(rename = "embedded")]
-    Embedded { name: String },
+    Embedded { uuid: String },
 }
 
 /// Style settings of an inlined document tree element.

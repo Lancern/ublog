@@ -1,87 +1,109 @@
-use rusqlite::{Connection, Row, Rows};
+use rusqlite::{Connection, Row};
+use uuid::Uuid;
 
 use crate::models::Resource;
+use crate::storage::sqlite::{SqliteExt, SqliteStorageError};
 
-pub(crate) fn init_db_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
+pub(crate) fn init_db_schema(conn: &Connection) -> Result<(), SqliteStorageError> {
     const INIT_SQL: &str = r#"
         CREATE TABLE IF NOT EXISTS resources (
-            name TEXT NOT NULL PRIMARY KEY,
+            id   TEXT NOT NULL PRIMARY KEY,
+            name TEXT NOT NULL,
             ty   TEXT NOT NULL,
             data BLOB NOT NULL
         ) WITHOUT ROWID;
     "#;
-    conn.execute_batch(INIT_SQL)
+    conn.execute_batch(INIT_SQL)?;
+
+    Ok(())
 }
 
 pub(crate) fn get_resource(
     conn: &Connection,
-    name: &str,
-) -> Result<Option<Resource>, rusqlite::Error> {
+    uuid: &Uuid,
+) -> Result<Option<Resource>, SqliteStorageError> {
     const SELECT_SQL: &str = r#"
-        SELECT name, ty, data
+        SELECT id, name, ty, data
         FROM resources
-        WHERE name == ?;
+        WHERE id == ?;
     "#;
 
-    match conn.query_row(SELECT_SQL, (name,), create_resource_from_row) {
-        Ok(res) => Ok(Some(res)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(err) => Err(err),
-    }
+    let uuid_str = format!("{}", uuid.as_hyphenated());
+    conn.query_one(SELECT_SQL, (&uuid_str,), create_resource_from_row)
 }
 
-pub(crate) fn get_resources(conn: &Connection) -> Result<Vec<Resource>, rusqlite::Error> {
+pub(crate) fn get_resources(conn: &Connection) -> Result<Vec<Resource>, SqliteStorageError> {
     const SELECT_SQL: &str = r#"
-        SELECT name, ty
+        SELECT id, name, ty
         FROM resources;
     "#;
 
-    let mut stmt = conn.prepare(SELECT_SQL).unwrap();
-    let rows = stmt.query(())?;
-    create_resources_from_rows(rows)
+    conn.query_many(SELECT_SQL, (), create_resources_from_row_no_data)
+}
+
+pub(crate) fn get_post_resources(
+    conn: &Connection,
+    post_slug: &str,
+) -> Result<Vec<Resource>, SqliteStorageError> {
+    const SELECT_SQL: &str = r#"
+        SELECT id, name, ty, data
+        FROM posts_resources JOIN resources ON posts_resources.res_id == resources.id
+        where posts_resources.post_slug == ?;
+    "#;
+
+    conn.query_many(SELECT_SQL, (post_slug,), create_resource_from_row)
 }
 
 pub(crate) fn insert_resource(
     conn: &Connection,
     resource: &Resource,
-) -> Result<(), rusqlite::Error> {
+) -> Result<(), SqliteStorageError> {
     const INSERT_SQL: &str = r#"
-        INSERT INTO resources (name, ty, data)
-        VALUES (?, ?, ?);
+        INSERT INTO resources (id, name, ty, data)
+        VALUES (?, ?, ?, ?);
     "#;
 
-    conn.execute(INSERT_SQL, (&resource.name, &resource.ty, &resource.data))?;
+    let uuid_str = format!("{}", resource.id.as_hyphenated());
+
+    conn.execute(
+        INSERT_SQL,
+        (&uuid_str, &resource.name, &resource.ty, &resource.data),
+    )?;
     Ok(())
 }
 
-pub(crate) fn delete_resource(conn: &Connection, name: &str) -> Result<(), rusqlite::Error> {
+pub(crate) fn delete_resource(conn: &Connection, uuid: &Uuid) -> Result<(), SqliteStorageError> {
     const DELETE_SQL: &str = r#"
         DELETE FROM resources
-        WHERE name == ?;
+        WHERE id == ?;
     "#;
 
-    conn.execute(DELETE_SQL, (name,))?;
+    let uuid_str = format!("{}", uuid.as_hyphenated());
+    conn.execute(DELETE_SQL, (&uuid_str,))?;
 
     Ok(())
 }
 
-fn create_resource_from_row(row: &Row) -> Result<Resource, rusqlite::Error> {
+fn create_resource_from_row(row: &Row) -> Result<Resource, SqliteStorageError> {
+    let id_str: String = row.get("id")?;
+    let id = id_str.parse()?;
     Ok(Resource {
+        id,
         name: row.get("name")?,
         ty: row.get("ty")?,
         data: row.get("data")?,
     })
 }
 
-fn create_resources_from_rows(rows: Rows) -> Result<Vec<Resource>, rusqlite::Error> {
-    rows.mapped(|row| {
-        Ok(Resource {
-            name: row.get("name")?,
-            ty: row.get("ty")?,
-            data: Vec::new(),
-        })
+fn create_resources_from_row_no_data(row: &Row) -> Result<Resource, SqliteStorageError> {
+    let id_str: String = row.get("id")?;
+    let id = id_str.parse()?;
+    Ok(Resource {
+        id,
+        name: row.get("name")?,
+        ty: row.get("ty")?,
+        data: row.get("data")?,
     })
-    .collect()
 }
 
 #[cfg(test)]
@@ -99,6 +121,7 @@ mod tests {
         let conn = init_db_connection();
 
         let res = Resource {
+            id: Uuid::new_v4(),
             name: String::from("res"),
             ty: String::from("text/html"),
             data: vec![0, 1, 2, 3],
@@ -110,24 +133,24 @@ mod tests {
     fn test_insert_resource_name_conflict() {
         let conn = init_db_connection();
 
+        let id = Uuid::new_v4();
+
         let res = Resource {
-            name: String::from("res"),
+            id,
+            name: String::from("res1"),
             ty: String::from("text/html"),
             data: vec![0, 1, 2, 3],
         };
         insert_resource(&conn, &res).unwrap();
 
         let res = Resource {
-            name: String::from("res"),
+            id,
+            name: String::from("res2"),
             ty: String::from("text/css"),
             data: vec![1, 2, 3, 4],
         };
-        let insert_err = insert_resource(&conn, &res).unwrap_err();
-        let insert_sqlite_err_code = insert_err.sqlite_error_code().unwrap();
-        assert_eq!(
-            insert_sqlite_err_code,
-            rusqlite::ErrorCode::ConstraintViolation
-        );
+        let insert_res = insert_resource(&conn, &res);
+        assert!(insert_res.is_err());
     }
 
     #[test]
@@ -135,13 +158,15 @@ mod tests {
         let conn = init_db_connection();
 
         let res = Resource {
+            id: Uuid::new_v4(),
             name: String::from("res"),
             ty: String::from("text/html"),
             data: vec![0, 1, 2, 3],
         };
         insert_resource(&conn, &res).unwrap();
 
-        let selected_res = get_resource(&conn, "res").unwrap().unwrap();
+        let selected_res = get_resource(&conn, &res.id).unwrap().unwrap();
+        assert_eq!(res.id, selected_res.id);
         assert_eq!(res.name, selected_res.name);
         assert_eq!(res.ty, selected_res.ty);
         assert_eq!(res.data, selected_res.data);
@@ -151,7 +176,8 @@ mod tests {
     fn test_select_not_exist() {
         let conn = init_db_connection();
 
-        let selected_res = get_resource(&conn, "res").unwrap();
+        let id = Uuid::new_v4();
+        let selected_res = get_resource(&conn, &id).unwrap();
         assert!(selected_res.is_none());
     }
 
@@ -160,21 +186,23 @@ mod tests {
         let conn = init_db_connection();
 
         let res = Resource {
+            id: Uuid::new_v4(),
             name: String::from("res"),
             ty: String::from("text/html"),
             data: vec![0, 1, 2, 3],
         };
         insert_resource(&conn, &res).unwrap();
 
-        delete_resource(&conn, "res").unwrap();
+        delete_resource(&conn, &res.id).unwrap();
 
-        let selected_res = get_resource(&conn, "res").unwrap();
+        let selected_res = get_resource(&conn, &res.id).unwrap();
         assert!(selected_res.is_none());
     }
 
     #[test]
     fn test_delete_not_exist() {
         let conn = init_db_connection();
-        delete_resource(&conn, "res").unwrap();
+        let id = Uuid::new_v4();
+        delete_resource(&conn, &id).unwrap();
     }
 }

@@ -1,8 +1,9 @@
 use rusqlite::{Connection, Row, ToSql};
 
 use crate::models::{Commit, CommitPayload};
+use crate::storage::sqlite::{SqliteExt, SqliteStorageError};
 
-pub(crate) fn init_db_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
+pub(crate) fn init_db_schema(conn: &Connection) -> Result<(), SqliteStorageError> {
     const INIT_SQL: &str = r#"
         CREATE TABLE IF NOT EXISTS commits (
             id             BLOB NOT NULL,
@@ -18,7 +19,7 @@ pub(crate) fn init_db_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-pub(crate) fn get_latest_commit(conn: &Connection) -> Result<Option<Commit>, rusqlite::Error> {
+pub(crate) fn get_latest_commit(conn: &Connection) -> Result<Option<Commit>, SqliteStorageError> {
     const SELECT_SQL: &str = r#"
         SELECT id, timestamp, prev_commit_id, payload
         FROM commits
@@ -26,17 +27,13 @@ pub(crate) fn get_latest_commit(conn: &Connection) -> Result<Option<Commit>, rus
         LIMIT 1;
     "#;
 
-    match conn.query_row(SELECT_SQL, (), create_commit_from_row) {
-        Ok(commit) => Ok(Some(commit)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(err) => Err(err),
-    }
+    conn.query_one(SELECT_SQL, (), create_commit_from_row)
 }
 
 pub(crate) fn get_commits(
     conn: &Connection,
     since_timestamp: i64,
-) -> Result<Vec<Commit>, rusqlite::Error> {
+) -> Result<Vec<Commit>, SqliteStorageError> {
     const SELECT_SQL: &str = r#"
         SELECT id, timestamp, prev_commit_id, payload
         FROM commits
@@ -44,18 +41,17 @@ pub(crate) fn get_commits(
         ORDER BY timestamp ASC;
     "#;
 
-    let mut query_stmt = conn.prepare(SELECT_SQL).unwrap();
-    let commits = query_stmt
-        .query_map((since_timestamp,), create_commit_from_row)?
-        .collect::<Result<_, _>>()?;
-    Ok(commits)
+    conn.query_many(SELECT_SQL, (since_timestamp,), create_commit_from_row)
 }
 
-pub(crate) fn insert_commit(conn: &Connection, commit: &Commit) -> Result<(), rusqlite::Error> {
+pub(crate) fn insert_commit(conn: &Connection, commit: &Commit) -> Result<(), SqliteStorageError> {
     insert_commits(conn, std::slice::from_ref(commit))
 }
 
-pub(crate) fn insert_commits(conn: &Connection, commits: &[Commit]) -> Result<(), rusqlite::Error> {
+pub(crate) fn insert_commits(
+    conn: &Connection,
+    commits: &[Commit],
+) -> Result<(), SqliteStorageError> {
     let mut serialized_payload_data = Vec::with_capacity(commits.len());
     for c in commits {
         let payload = serialize_commit_payload(&c.payload);
@@ -82,7 +78,7 @@ pub(crate) fn insert_commits(conn: &Connection, commits: &[Commit]) -> Result<()
     Ok(())
 }
 
-fn create_commit_from_row(row: &Row) -> Result<Commit, rusqlite::Error> {
+fn create_commit_from_row(row: &Row) -> Result<Commit, SqliteStorageError> {
     let payload_data: Vec<u8> = row.get("payload")?;
     let payload = deserialize_commit_payload(&payload_data);
 

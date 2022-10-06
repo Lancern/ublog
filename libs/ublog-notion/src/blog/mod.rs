@@ -5,7 +5,7 @@ use std::fmt::{Display, Formatter};
 
 use lazy_static::lazy_static;
 use spdlog::Logger;
-use ublog_data::models::{Post, PostResource};
+use ublog_data::models::{Post, Resource};
 use ublog_doc::{DocumentNode, DocumentNodeTag, DocumentNodeVisitor, DocumentResourceLink};
 use uuid::Uuid;
 
@@ -71,7 +71,7 @@ pub async fn get_post_content(
 /// This function also updates the corresponding documentation node to refer to the extracted resources.
 pub async fn extract_notion_resources(
     post: &mut NotionPost,
-) -> Result<Vec<PostResource>, NotionBlogError> {
+) -> Result<Vec<Resource>, NotionBlogError> {
     spdlog::trace!(
         logger: LOGGER,
         "extract notion resources: {} - {}",
@@ -88,9 +88,9 @@ pub async fn extract_notion_resources(
         fn visit_mut(&mut self, node: &mut DocumentNode) {
             if let Some((link, url)) = extract_notion_res_link_in_doc_node(node) {
                 if let Some(resource) = NotionResource::new(url) {
-                    let name = resource.name.clone();
+                    let uuid = format!("{}", resource.id.as_hyphenated());
                     self.resources.push(resource);
-                    *link = DocumentResourceLink::Embedded { name };
+                    *link = DocumentResourceLink::Embedded { uuid };
                 }
             }
         }
@@ -271,7 +271,7 @@ fn extract_notion_res_link_in_doc_node(
 
 struct NotionResource {
     url: String,
-    name: String,
+    id: Uuid,
 }
 
 impl NotionResource {
@@ -280,16 +280,15 @@ impl NotionResource {
         T: Into<String>,
     {
         let url = url.into();
-        let name = Uuid::new_v4().to_string();
-
-        Some(Self { url, name })
+        let id = Uuid::new_v4();
+        Some(Self { url, id })
     }
 }
 
 async fn fetch_notion_resource<T>(
     post_slug: T,
     resource: NotionResource,
-) -> Result<PostResource, reqwest::Error>
+) -> Result<Resource, reqwest::Error>
 where
     T: Into<String>,
 {
@@ -297,7 +296,7 @@ where
     spdlog::trace!(
         "fetch notion resource: {}/{} from {}",
         post_slug,
-        resource.name,
+        resource.id,
         resource.url
     );
 
@@ -310,9 +309,9 @@ where
         .unwrap_or_else(|| String::from("application/octet-stream"));
     let data = response.bytes().await?.into_iter().collect();
 
-    Ok(PostResource {
-        post_slug,
-        name: resource.name,
+    Ok(Resource {
+        id: resource.id,
+        name: String::from(""),
         ty: content_type,
         data,
     })

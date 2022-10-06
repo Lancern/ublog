@@ -7,8 +7,9 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
-use crate::models::{Commit, Delta, Post, PostResource, Resource};
+use crate::models::{Commit, Delta, Post, Resource};
 use crate::storage::{Pagination, Storage};
 
 /// A server that exposes an inner storage object through an underlying channel to a remote storage client.
@@ -83,23 +84,14 @@ where
             Request::GetPosts { pagination } => {
                 process_request!(self, self.inner.get_posts(&*pagination));
             }
-            Request::GetPostResource {
-                post_slug,
-                resource_name,
-            } => {
-                process_request!(
-                    self,
-                    self.inner.get_post_resource(&*post_slug, &*resource_name)
-                );
-            }
             Request::InsertResource { resource } => {
                 process_request!(self, self.inner.insert_resource(&*resource));
             }
-            Request::DeleteResource { resource_name } => {
-                process_request!(self, self.inner.delete_resource(&*resource_name));
+            Request::DeleteResource { resource_id } => {
+                process_request!(self, self.inner.delete_resource(&resource_id));
             }
-            Request::GetResource { resource_name } => {
-                process_request!(self, self.inner.get_resource(&*resource_name));
+            Request::GetResource { resource_id } => {
+                process_request!(self, self.inner.get_resource(&resource_id));
             }
             Request::GetResources => {
                 process_request!(self, self.inner.get_resources());
@@ -172,7 +164,7 @@ where
     async fn insert_post(
         &self,
         post: &Post,
-        post_resources: &[PostResource],
+        post_resources: &[Resource],
     ) -> Result<(), Self::Error> {
         self.execute_request(&Request::InsertPost {
             post: Cow::Borrowed(post),
@@ -184,7 +176,7 @@ where
     async fn update_post(
         &self,
         post: &Post,
-        post_resources: &[PostResource],
+        post_resources: &[Resource],
     ) -> Result<(), Self::Error> {
         self.execute_request(&Request::UpdatePost {
             post: Cow::Borrowed(post),
@@ -210,7 +202,7 @@ where
     async fn get_post_with_resources(
         &self,
         post_slug: &str,
-    ) -> Result<Option<(Post, Vec<PostResource>)>, Self::Error> {
+    ) -> Result<Option<(Post, Vec<Resource>)>, Self::Error> {
         self.execute_request(&Request::GetPostWithResources {
             post_slug: Cow::Borrowed(post_slug),
         })
@@ -224,18 +216,6 @@ where
         .await
     }
 
-    async fn get_post_resource(
-        &self,
-        post_slug: &str,
-        resource_name: &str,
-    ) -> Result<Option<PostResource>, Self::Error> {
-        self.execute_request(&Request::GetPostResource {
-            post_slug: Cow::Borrowed(post_slug),
-            resource_name: Cow::Borrowed(resource_name),
-        })
-        .await
-    }
-
     async fn insert_resource(&self, resource: &Resource) -> Result<(), Self::Error> {
         self.execute_request(&Request::InsertResource {
             resource: Cow::Borrowed(resource),
@@ -243,16 +223,16 @@ where
         .await
     }
 
-    async fn delete_resource(&self, resource_name: &str) -> Result<(), Self::Error> {
+    async fn delete_resource(&self, resource_id: &Uuid) -> Result<(), Self::Error> {
         self.execute_request(&Request::DeleteResource {
-            resource_name: Cow::Borrowed(resource_name),
+            resource_id: *resource_id,
         })
         .await
     }
 
-    async fn get_resource(&self, resource_name: &str) -> Result<Option<Resource>, Self::Error> {
+    async fn get_resource(&self, resource_id: &Uuid) -> Result<Option<Resource>, Self::Error> {
         self.execute_request(&Request::GetResource {
-            resource_name: Cow::Borrowed(resource_name),
+            resource_id: *resource_id,
         })
         .await
     }
@@ -306,11 +286,11 @@ impl From<std::io::Error> for RemoteStorageError {
 enum Request<'a> {
     InsertPost {
         post: Cow<'a, Post>,
-        post_resources: Cow<'a, [PostResource]>,
+        post_resources: Cow<'a, [Resource]>,
     },
     UpdatePost {
         post: Cow<'a, Post>,
-        post_resources: Cow<'a, [PostResource]>,
+        post_resources: Cow<'a, [Resource]>,
     },
     DeletePost {
         post_slug: Cow<'a, str>,
@@ -324,18 +304,14 @@ enum Request<'a> {
     GetPosts {
         pagination: Cow<'a, Pagination>,
     },
-    GetPostResource {
-        post_slug: Cow<'a, str>,
-        resource_name: Cow<'a, str>,
-    },
     InsertResource {
         resource: Cow<'a, Resource>,
     },
     DeleteResource {
-        resource_name: Cow<'a, str>,
+        resource_id: Uuid,
     },
     GetResource {
-        resource_name: Cow<'a, str>,
+        resource_id: Uuid,
     },
     GetResources,
     GetCommitsSince {

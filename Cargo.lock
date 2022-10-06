@@ -1602,6 +1602,7 @@ dependencies = [
  "tower-http",
  "ublog-data",
  "ublog-notion",
+ "uuid",
 ]
 
 [[package]]
@@ -1616,6 +1617,7 @@ dependencies = [
  "time 0.3.14",
  "tokio",
  "ublog-doc",
+ "uuid",
 ]
 
 [[package]]

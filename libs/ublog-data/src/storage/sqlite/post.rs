@@ -1,10 +1,12 @@
-use rusqlite::{Connection, Row, Rows, ToSql};
+use rusqlite::{Connection, Row, ToSql};
 use ublog_doc::DocumentNode;
+use uuid::Uuid;
 
-use crate::models::{Post, PostResource};
+use crate::models::{Post, Resource};
+use crate::storage::sqlite::{SqliteExt, SqliteStorageError};
 use crate::storage::Pagination;
 
-pub(crate) fn init_db_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
+pub(crate) fn init_db_schema(conn: &Connection) -> Result<(), SqliteStorageError> {
     const INIT_SQL: &str = r#"
         CREATE TABLE IF NOT EXISTS posts (
             slug             TEXT NOT NULL PRIMARY KEY,
@@ -29,35 +31,28 @@ pub(crate) fn init_db_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
 
         CREATE TABLE IF NOT EXISTS posts_resources (
             post_slug TEXT NOT NULL REFERENCES posts(slug) ON DELETE CASCADE,
-            res_name  TEXT NOT NULL,
-            res_type  TEXT NOT NULL,
-            res_data  BLOB NOT NULL
+            res_id    TEXT NOT NULL REFERENCES resources(id)
         );
 
-        CREATE UNIQUE INDEX IF NOT EXISTS posts_resources_idx_uniq ON posts_resources (post_slug, res_name);
+        CREATE UNIQUE INDEX IF NOT EXISTS posts_resources_idx_uniq ON posts_resources (post_slug, res_id);
     "#;
 
-    conn.execute_batch(INIT_SQL)
+    conn.execute_batch(INIT_SQL)?;
+
+    Ok(())
 }
 
 pub(super) fn get_post(
     conn: &Connection,
     post_slug: &str,
-) -> Result<Option<Post>, rusqlite::Error> {
+) -> Result<Option<Post>, SqliteStorageError> {
     const SELECT_SQL: &str = r#"
         SELECT title, slug, author, create_timestamp, update_timestamp, category, content
         FROM posts
         WHERE slug == ?;
     "#;
 
-    let mut post = match conn.query_row(SELECT_SQL, (post_slug,), create_post_from_row) {
-        Ok(p) => Some(p),
-        Err(rusqlite::Error::QueryReturnedNoRows) => None,
-        Err(err) => {
-            return Err(err);
-        }
-    };
-
+    let mut post = conn.query_one(SELECT_SQL, (post_slug,), create_post_from_row)?;
     if let Some(post) = post.as_mut() {
         populate_post_tags(conn, post)?;
     }
@@ -68,24 +63,14 @@ pub(super) fn get_post(
 pub(super) fn get_post_with_resources(
     conn: &Connection,
     post_slug: &str,
-) -> Result<Option<(Post, Vec<PostResource>)>, rusqlite::Error> {
+) -> Result<Option<(Post, Vec<Resource>)>, SqliteStorageError> {
     let post = match get_post(conn, post_slug)? {
         Some(post) => post,
         None => {
             return Ok(None);
         }
     };
-
-    const SELECT_RESOURCES_SQL: &str = r#"
-        SELECT post_slug, res_name, res_type, res_data
-        FROM posts_resources
-        where post_slug == ?;
-    "#;
-
-    let mut stmt = conn.prepare(SELECT_RESOURCES_SQL).unwrap();
-    let post_resources = stmt
-        .query_map((post_slug,), create_post_resource_from_row)?
-        .collect::<Result<_, _>>()?;
+    let post_resources = crate::storage::sqlite::resource::get_post_resources(conn, post_slug)?;
 
     Ok(Some((post, post_resources)))
 }
@@ -93,7 +78,7 @@ pub(super) fn get_post_with_resources(
 pub(super) fn get_posts(
     conn: &Connection,
     pagination: &Pagination,
-) -> Result<Vec<Post>, rusqlite::Error> {
+) -> Result<Vec<Post>, SqliteStorageError> {
     const SELECT_SQL: &str = r#"
         SELECT title, slug, author, create_timestamp, update_timestamp, category
         FROM posts
@@ -104,10 +89,8 @@ pub(super) fn get_posts(
     let limit = pagination.page_size();
     let offset = pagination.skip_count();
 
-    let mut query_stmt = conn.prepare_cached(SELECT_SQL).unwrap();
-    let post_rows = query_stmt.query((limit, offset))?;
-    let mut posts = create_posts_from_rows(post_rows)?;
-
+    let mut posts =
+        conn.query_many(SELECT_SQL, (limit, offset), create_post_from_row_no_content)?;
     for p in &mut posts {
         populate_post_tags(conn, p)?;
     }
@@ -115,43 +98,17 @@ pub(super) fn get_posts(
     Ok(posts)
 }
 
-pub(super) fn get_post_resource(
-    conn: &Connection,
-    post_slug: &str,
-    resource_name: &str,
-) -> Result<Option<PostResource>, rusqlite::Error> {
-    const SELECT_SQL: &str = r#"
-        SELECT post_slug, res_name, res_type, res_data
-        FROM post_resources
-        WHERE post_slug == ? AND res_name == ?;
-    "#;
-
-    conn.query_row(
-        SELECT_SQL,
-        (post_slug, resource_name),
-        create_post_resource_from_row,
-    )
-    .map(Some)
-    .or_else(|err| {
-        if let rusqlite::Error::QueryReturnedNoRows = err {
-            Ok(None)
-        } else {
-            Err(err)
-        }
-    })
-}
-
 pub(super) fn insert_post(
     conn: &Connection,
     post: &Post,
-    post_resources: &[PostResource],
-) -> Result<(), rusqlite::Error> {
+    post_resources: &[Resource],
+) -> Result<(), SqliteStorageError> {
     const INSERT_POST_SQL: &str = r#"
         INSERT INTO posts (title, slug, author, create_timestamp, update_timestamp, category, content)
         VALUES (?, ?, ?, ?, ?, ?, ?);
     "#;
 
-    let content_data = serialize_post_content(&post.content);
+    let content_data = bson::to_vec(&post.content).unwrap();
 
     // Insert the post object into the database.
     conn.execute(
@@ -178,18 +135,20 @@ pub(super) fn insert_post(
     Ok(())
 }
 
-pub(super) fn delete_post(conn: &Connection, post_slug: &str) -> Result<(), rusqlite::Error> {
+pub(super) fn delete_post(conn: &Connection, post_slug: &str) -> Result<(), SqliteStorageError> {
     const DELETE_SQL: &str = r#"
         DELETE FROM posts
         WHERE slug == ?;
     "#;
+
+    delete_post_resources(conn, post_slug)?;
 
     conn.execute(DELETE_SQL, (post_slug,))?;
 
     Ok(())
 }
 
-fn populate_post_tags(conn: &Connection, post: &mut Post) -> Result<(), rusqlite::Error> {
+fn populate_post_tags(conn: &Connection, post: &mut Post) -> Result<(), SqliteStorageError> {
     const SELECT_SQL: &str = r#"
         SELECT tag_name FROM posts_tags
         WHERE post_slug == ?;
@@ -209,7 +168,7 @@ fn insert_post_tags(
     conn: &Connection,
     post_slug: &str,
     tags: &[String],
-) -> Result<(), rusqlite::Error> {
+) -> Result<(), SqliteStorageError> {
     if tags.is_empty() {
         return Ok(());
     }
@@ -235,43 +194,44 @@ fn insert_post_tags(
 fn insert_post_resources(
     conn: &Connection,
     post_slug: &str,
-    resources: &[PostResource],
-) -> Result<(), rusqlite::Error> {
-    if resources.is_empty() {
-        return Ok(());
-    }
+    resources: &[Resource],
+) -> Result<(), SqliteStorageError> {
+    for res in resources {
+        crate::storage::sqlite::resource::insert_resource(conn, res)?;
 
-    let mut param_values: Vec<&dyn ToSql> = vec![&post_slug];
-    param_values.reserve(resources.len());
-    for r in resources {
-        param_values.push(&r.name);
-        param_values.push(&r.ty);
-        param_values.push(&r.data);
+        const INSERT_RELATION_SQL: &str = r#"
+            INSERT INTO posts_resources (post_slug, res_id)
+            VALUES (?, ?);
+        "#;
+        let res_id = format!("{}", res.id.as_hyphenated());
+        conn.execute(INSERT_RELATION_SQL, (post_slug, &res_id))?;
     }
-
-    let insert_resources_sql = format!(
-        r#"
-            INSERT INTO posts_resources (post_slug, res_name, res_type, res_data)
-            VALUES {};
-        "#,
-        vec!["(?1, ?, ?, ?)"; resources.len()].join(",")
-    );
-    conn.execute(&insert_resources_sql, param_values.as_slice())?;
 
     Ok(())
 }
 
-fn serialize_post_content(content: &DocumentNode) -> Vec<u8> {
-    bson::to_vec(content).unwrap()
+fn delete_post_resources(conn: &Connection, post_slug: &str) -> Result<(), SqliteStorageError> {
+    const SELECT_RES_ID_SQL: &str = r#"
+        SELECT res_id
+        FROM posts_resources
+        WHERE post_slug == ?;
+    "#;
+    let res_ids = conn.query_many(SELECT_RES_ID_SQL, (post_slug,), |row| {
+        let res_id_str: String = row.get("res_id")?;
+        let res_id = Uuid::try_parse(&res_id_str)?;
+        Ok(res_id)
+    })?;
+
+    for res_id in res_ids {
+        crate::storage::sqlite::resource::delete_resource(conn, &res_id)?;
+    }
+
+    Ok(())
 }
 
-fn deserialize_post_content(data: &[u8]) -> DocumentNode {
-    bson::from_slice(data).unwrap()
-}
-
-fn create_post_from_row(row: &Row) -> Result<Post, rusqlite::Error> {
+fn create_post_from_row(row: &Row) -> Result<Post, SqliteStorageError> {
     let content_data: Vec<u8> = row.get("content")?;
-    let content = deserialize_post_content(&content_data);
+    let content = bson::from_slice(&content_data)?;
     Ok(Post {
         title: row.get("title")?,
         slug: row.get("slug")?,
@@ -284,28 +244,16 @@ fn create_post_from_row(row: &Row) -> Result<Post, rusqlite::Error> {
     })
 }
 
-fn create_posts_from_rows(rows: Rows) -> Result<Vec<Post>, rusqlite::Error> {
-    rows.mapped(|row| {
-        Ok(Post {
-            title: row.get("title")?,
-            slug: row.get("slug")?,
-            author: row.get("author")?,
-            create_timestamp: row.get("create_timestamp")?,
-            update_timestamp: row.get("update_timestamp")?,
-            category: row.get("category")?,
-            tags: Vec::new(),
-            content: DocumentNode::new_empty(),
-        })
-    })
-    .collect()
-}
-
-fn create_post_resource_from_row(row: &Row) -> Result<PostResource, rusqlite::Error> {
-    Ok(PostResource {
-        post_slug: row.get("post_slug")?,
-        name: row.get("res_name")?,
-        ty: row.get("res_types")?,
-        data: row.get("res_data")?,
+fn create_post_from_row_no_content(row: &Row) -> Result<Post, SqliteStorageError> {
+    Ok(Post {
+        title: row.get("title")?,
+        slug: row.get("slug")?,
+        author: row.get("author")?,
+        create_timestamp: row.get("create_timestamp")?,
+        update_timestamp: row.get("update_timestamp")?,
+        category: row.get("category")?,
+        tags: Vec::new(),
+        content: DocumentNode::new_empty(),
     })
 }
 
@@ -316,7 +264,10 @@ mod tests {
 
     fn init_db_connection() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
+
         init_db_schema(&conn).unwrap();
+        crate::storage::sqlite::resource::init_db_schema(&conn).unwrap();
+
         conn
     }
 
@@ -326,13 +277,10 @@ mod tests {
             WHERE post_slug == ?;
         "#;
 
-        let mut select_sql_stmt = conn.prepare(SELECT_SQL).unwrap();
-        select_sql_stmt
-            .query((post_slug,))
-            .unwrap()
-            .mapped(|row| row.get(0))
-            .collect::<Result<_, rusqlite::Error>>()
-            .unwrap()
+        conn.query_many(SELECT_SQL, (post_slug,), |row| {
+            row.get(0).map_err(From::from)
+        })
+        .unwrap()
     }
 
     #[test]
@@ -368,11 +316,8 @@ mod tests {
         };
         insert_post(&conn, &post, &[]).unwrap();
 
-        let insert_err = insert_post(&conn, &post, &[]).unwrap_err();
-        assert_eq!(
-            insert_err.sqlite_error_code().unwrap(),
-            rusqlite::ErrorCode::ConstraintViolation
-        );
+        let insert_res = insert_post(&conn, &post, &[]);
+        assert!(insert_res.is_err());
     }
 
     #[test]

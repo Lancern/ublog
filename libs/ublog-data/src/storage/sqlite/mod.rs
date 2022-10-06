@@ -2,13 +2,16 @@ mod commit;
 mod post;
 mod resource;
 
+use std::error::Error;
+use std::fmt::{Display, Formatter};
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 
 use async_trait::async_trait;
-use rusqlite::Connection;
+use rusqlite::{Connection, Params, Row};
+use uuid::Uuid;
 
-use crate::models::{Commit, CommitPayload, Delta, Post, PostResource, Resource};
+use crate::models::{Commit, CommitPayload, Delta, Post, Resource};
 use crate::storage::{Pagination, Storage};
 
 /// Provide sqlite-based storage for databases.
@@ -19,7 +22,7 @@ pub struct SqliteStorage {
 
 impl SqliteStorage {
     /// Create a new `SqliteStorage` from the given sqlite connection.
-    pub fn new(conn: Connection) -> Result<Self, rusqlite::Error> {
+    pub fn new(conn: Connection) -> Result<Self, SqliteStorageError> {
         init_db_schema(&conn)?;
 
         let conn = Mutex::new(conn);
@@ -28,7 +31,7 @@ impl SqliteStorage {
 
     /// Create a new sqlite connection to the specified sqlite database file and then create a new `SqliteStorage` from
     /// that sqlite connection.
-    pub fn new_file<P>(path: P) -> Result<Self, rusqlite::Error>
+    pub fn new_file<P>(path: P) -> Result<Self, SqliteStorageError>
     where
         P: AsRef<Path>,
     {
@@ -37,7 +40,7 @@ impl SqliteStorage {
     }
 
     /// Create a new in-memory sqlite connection and then create a new `SqliteStorage` from that sqlite connection.
-    pub fn new_memory() -> Result<Self, rusqlite::Error> {
+    pub fn new_memory() -> Result<Self, SqliteStorageError> {
         let conn = Connection::open_in_memory()?;
         Self::new(conn)
     }
@@ -50,10 +53,10 @@ impl SqliteStorage {
         &self,
         commit_payloads: T,
         transact: F,
-    ) -> Result<(), rusqlite::Error>
+    ) -> Result<(), SqliteStorageError>
     where
         T: IntoIterator<Item = CommitPayload>,
-        F: FnOnce(&Connection) -> Result<(), rusqlite::Error>,
+        F: FnOnce(&Connection) -> Result<(), SqliteStorageError>,
     {
         let mut conn = self.lock();
         let trans = conn.transaction()?;
@@ -78,12 +81,12 @@ impl SqliteStorage {
 
 #[async_trait]
 impl Storage for SqliteStorage {
-    type Error = rusqlite::Error;
+    type Error = SqliteStorageError;
 
     async fn insert_post(
         &self,
         post: &Post,
-        post_resources: &[PostResource],
+        post_resources: &[Resource],
     ) -> Result<(), Self::Error> {
         let commit_payload = CommitPayload::create_post(post.slug.clone());
         self.transact_and_commit([commit_payload], |conn| {
@@ -94,7 +97,7 @@ impl Storage for SqliteStorage {
     async fn update_post(
         &self,
         post: &Post,
-        post_resources: &[PostResource],
+        post_resources: &[Resource],
     ) -> Result<(), Self::Error> {
         let commit_payloads = [
             CommitPayload::delete_post(post.slug.clone()),
@@ -122,7 +125,7 @@ impl Storage for SqliteStorage {
     async fn get_post_with_resources(
         &self,
         post_slug: &str,
-    ) -> Result<Option<(Post, Vec<PostResource>)>, Self::Error> {
+    ) -> Result<Option<(Post, Vec<Resource>)>, Self::Error> {
         let conn = self.lock();
         crate::storage::sqlite::post::get_post_with_resources(&*conn, post_slug)
     }
@@ -132,32 +135,23 @@ impl Storage for SqliteStorage {
         crate::storage::sqlite::post::get_posts(&*conn, pagination)
     }
 
-    async fn get_post_resource(
-        &self,
-        post_slug: &str,
-        resource_name: &str,
-    ) -> Result<Option<PostResource>, Self::Error> {
-        let conn = self.lock();
-        crate::storage::sqlite::post::get_post_resource(&*conn, post_slug, resource_name)
-    }
-
     async fn insert_resource(&self, resource: &Resource) -> Result<(), Self::Error> {
-        let commit_payload = CommitPayload::create_resource(resource.name.clone());
+        let commit_payload = CommitPayload::create_resource(resource.id);
         self.transact_and_commit([commit_payload], |conn| {
             crate::storage::sqlite::resource::insert_resource(conn, resource)
         })
     }
 
-    async fn delete_resource(&self, resource_name: &str) -> Result<(), Self::Error> {
-        let commit_payload = CommitPayload::delete_resource(resource_name);
+    async fn delete_resource(&self, resource_id: &Uuid) -> Result<(), Self::Error> {
+        let commit_payload = CommitPayload::delete_resource(*resource_id);
         self.transact_and_commit([commit_payload], |conn| {
-            crate::storage::sqlite::resource::delete_resource(conn, resource_name)
+            crate::storage::sqlite::resource::delete_resource(conn, resource_id)
         })
     }
 
-    async fn get_resource(&self, resource_name: &str) -> Result<Option<Resource>, Self::Error> {
+    async fn get_resource(&self, resource_id: &Uuid) -> Result<Option<Resource>, Self::Error> {
         let conn = self.lock();
-        crate::storage::sqlite::resource::get_resource(&*conn, resource_name)
+        crate::storage::sqlite::resource::get_resource(&*conn, resource_id)
     }
 
     async fn get_resources(&self) -> Result<Vec<Resource>, Self::Error> {
@@ -183,8 +177,8 @@ impl Storage for SqliteStorage {
             crate::storage::sqlite::post::delete_post(&trans, slug)?;
         }
 
-        for name in &delta.deleted_resource_names {
-            crate::storage::sqlite::resource::delete_resource(&trans, name)?;
+        for id in &delta.deleted_resource_ids {
+            crate::storage::sqlite::resource::delete_resource(&trans, id)?;
         }
 
         for (post, post_resources) in &delta.added_posts {
@@ -203,10 +197,113 @@ impl Storage for SqliteStorage {
     }
 }
 
-fn init_db_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
+/// SQlite storage errors.
+#[derive(Debug)]
+pub enum SqliteStorageError {
+    Sqlite(rusqlite::Error),
+    Bson(bson::de::Error),
+    Uuid(uuid::Error),
+}
+
+impl Display for SqliteStorageError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sqlite(err) => write!(f, "sqlite error: {}", err),
+            Self::Bson(err) => write!(f, "bson deserialize error: {}", err),
+            Self::Uuid(err) => write!(f, "uuid error: {}", err),
+        }
+    }
+}
+
+impl Error for SqliteStorageError {}
+
+impl From<rusqlite::Error> for SqliteStorageError {
+    fn from(err: rusqlite::Error) -> Self {
+        Self::Sqlite(err)
+    }
+}
+
+impl From<bson::de::Error> for SqliteStorageError {
+    fn from(err: bson::de::Error) -> Self {
+        Self::Bson(err)
+    }
+}
+
+impl From<uuid::Error> for SqliteStorageError {
+    fn from(err: uuid::Error) -> Self {
+        Self::Uuid(err)
+    }
+}
+
+fn init_db_schema(conn: &Connection) -> Result<(), SqliteStorageError> {
     crate::storage::sqlite::commit::init_db_schema(conn)?;
     crate::storage::sqlite::post::init_db_schema(conn)?;
     crate::storage::sqlite::resource::init_db_schema(conn)?;
 
     Ok(())
+}
+
+trait SqliteExt {
+    fn query_one<S, P, F, T>(
+        &self,
+        sql: S,
+        params: P,
+        map_row: F,
+    ) -> Result<Option<T>, SqliteStorageError>
+    where
+        S: AsRef<str>,
+        P: Params,
+        F: FnOnce(&Row) -> Result<T, SqliteStorageError>;
+
+    fn query_many<S, P, F, T>(
+        &self,
+        sql: S,
+        params: P,
+        map_row: F,
+    ) -> Result<Vec<T>, SqliteStorageError>
+    where
+        S: AsRef<str>,
+        P: Params,
+        F: FnMut(&Row) -> Result<T, SqliteStorageError>;
+}
+
+impl SqliteExt for Connection {
+    fn query_one<S, P, F, T>(
+        &self,
+        sql: S,
+        params: P,
+        map_row: F,
+    ) -> Result<Option<T>, SqliteStorageError>
+    where
+        S: AsRef<str>,
+        P: Params,
+        F: FnOnce(&Row) -> Result<T, SqliteStorageError>,
+    {
+        let mut stmt = self.prepare(sql.as_ref()).unwrap();
+        let mut rows = stmt.query(params)?;
+        rows.next()?.map(map_row).transpose()
+    }
+
+    fn query_many<S, P, F, T>(
+        &self,
+        sql: S,
+        params: P,
+        mut map_row: F,
+    ) -> Result<Vec<T>, SqliteStorageError>
+    where
+        S: AsRef<str>,
+        P: Params,
+        F: FnMut(&Row) -> Result<T, SqliteStorageError>,
+    {
+        let mut stmt = self.prepare(sql.as_ref()).unwrap();
+        let mut rows = stmt.query(params)?;
+        let mut results = Vec::new();
+
+        while let Some(row) = rows.next()? {
+            let item = map_row(row)?;
+            results.push(item);
+        }
+
+        Ok(results)
+    }
 }

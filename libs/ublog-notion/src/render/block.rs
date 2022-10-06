@@ -77,17 +77,12 @@ fn render_list_item_block(b: &ListItemBlock) -> DocumentNode {
 
 fn render_code_block(b: &CodeBlock) -> DocumentNode {
     let caption = crate::render::rich_text::render_rich_texts_to_plain_text(&b.caption);
-    let mut node = DocumentNode::new(DocumentNodeTag::Code {
+    let code = crate::render::rich_text::render_rich_texts_to_plain_text(&b.rich_text);
+    DocumentNode::new(DocumentNodeTag::Code {
         language: b.language.clone(),
         caption: Some(caption),
-    });
-
-    let content = crate::render::rich_text::render_rich_texts_to_plain_text(&b.rich_text);
-    node.children = vec![DocumentNode::new(DocumentNodeTag::InlineText {
-        text: content,
-    })];
-
-    node
+        code,
+    })
 }
 
 fn render_image_block(image_file: &File) -> DocumentNode {

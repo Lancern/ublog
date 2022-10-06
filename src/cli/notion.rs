@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use ublog_data::db::Database;
-use ublog_data::models::PostResource;
+use ublog_data::models::Resource;
 use ublog_data::storage::sqlite::SqliteStorage;
 use ublog_data::storage::Storage;
 use ublog_notion::api::NotionApi;
@@ -137,7 +137,7 @@ where
 
 async fn update_post<S>(
     post: &NotionPost,
-    resources: &[PostResource],
+    resources: &[Resource],
     db: &Database<S>,
 ) -> Result<(), Box<dyn Error>>
 where
@@ -163,7 +163,7 @@ where
 
 async fn insert_post<S>(
     post: &NotionPost,
-    resources: &[PostResource],
+    resources: &[Resource],
     db: &Database<S>,
 ) -> Result<(), Box<dyn Error>>
 where

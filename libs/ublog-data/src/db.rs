@@ -1,4 +1,6 @@
-use crate::models::{Post, PostResource, Resource};
+use uuid::Uuid;
+
+use crate::models::{Post, Resource};
 use crate::storage::{Pagination, Storage};
 
 /// A database instance that loads data from an underlying storage.
@@ -33,20 +35,12 @@ where
     }
 
     /// Insert the given post into the database.
-    pub async fn insert_post(
-        &self,
-        post: &Post,
-        resources: &[PostResource],
-    ) -> Result<(), S::Error> {
+    pub async fn insert_post(&self, post: &Post, resources: &[Resource]) -> Result<(), S::Error> {
         self.storage.insert_post(post, resources).await
     }
 
     /// Update the given post into the database.
-    pub async fn update_post(
-        &self,
-        post: &Post,
-        resources: &[PostResource],
-    ) -> Result<(), S::Error> {
+    pub async fn update_post(&self, post: &Post, resources: &[Resource]) -> Result<(), S::Error> {
         self.storage.update_post(post, resources).await
     }
 
@@ -59,28 +53,9 @@ where
         self.storage.delete_post(slug).await
     }
 
-    /// Get the specified post resource.
-    pub async fn get_post_resource<T1, T2>(
-        &self,
-        slug: T1,
-        name: T2,
-    ) -> Result<Option<PostResource>, S::Error>
-    where
-        T1: AsRef<str>,
-        T2: AsRef<str>,
-    {
-        let slug = slug.as_ref();
-        let name = name.as_ref();
-        self.storage.get_post_resource(slug, name).await
-    }
-
-    /// Get the static resource object with the given name.
-    pub async fn get_resource<N>(&self, name: N) -> Result<Option<Resource>, S::Error>
-    where
-        N: AsRef<str>,
-    {
-        let name = name.as_ref();
-        self.storage.get_resource(name).await
+    /// Get the static resource object with the given ID.
+    pub async fn get_resource(&self, id: &Uuid) -> Result<Option<Resource>, S::Error> {
+        self.storage.get_resource(id).await
     }
 
     /// Get a list of resources within the specified page.
@@ -94,11 +69,7 @@ where
     }
 
     /// Delete the resource object with the given name.
-    pub async fn delete_resource<N>(&self, name: N) -> Result<(), S::Error>
-    where
-        N: AsRef<str>,
-    {
-        let name = name.as_ref();
-        self.storage.delete_resource(name).await
+    pub async fn delete_resource(&self, id: &Uuid) -> Result<(), S::Error> {
+        self.storage.delete_resource(id).await
     }
 }
