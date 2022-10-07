@@ -3,7 +3,7 @@ module.exports = {
   content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     fontFamily: {
-      sans: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Microsoft Yahei",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"'
+      sans: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Microsoft Yahei",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"',
     },
     extend: {
       animation: {

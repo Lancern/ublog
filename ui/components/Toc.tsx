@@ -130,9 +130,7 @@ function TocNavItem({ entry }: TocNavItemProps, ref?: LegacyRef<TocItemElement |
       href={`#${entry.targetId}`}
       ref={ref}
     >
-      <div className={indentStyle}>
-        {entry.title}
-      </div>
+      <div className={indentStyle}>{entry.title}</div>
     </a>
   );
 }
