@@ -40,7 +40,7 @@ export default function Navbar(): JSX.Element {
               rss
             </NavbarLink>
             <NavbarLink href="/about">about</NavbarLink>
-            <NavbarLink href="/articles">articles</NavbarLink>
+            <NavbarLink href="/posts">articles</NavbarLink>
           </div>
         </div>
       </AutoFluid>

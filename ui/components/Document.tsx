@@ -143,9 +143,9 @@ interface CalloutProps {
 
 function Callout({ emoji, children }: PropsWithChildren<CalloutProps>): JSX.Element {
   return (
-    <div className="flex bg-gray-200 first:mt-0 last:mb-0 my-4">
-      <div className="flex-none w-16">
-        <span className="block">{emoji}</span>
+    <div className="flex rounded-md p-4 gap-4 bg-gradient-to-br from-violet-200 to-blue-200 dark:from-violet-800 dark:to-blue-800 first:mt-0 last:mb-0 my-4">
+      <div className="flex-none text-3xl">
+        {emoji}
       </div>
       <div className="flex-grow">{children}</div>
     </div>
@@ -154,7 +154,9 @@ function Callout({ emoji, children }: PropsWithChildren<CalloutProps>): JSX.Elem
 
 function Quote({ children }: PropsWithChildren<{}>): JSX.Element {
   return (
-    <div className="border-l-8 border-l-black bg-gray-200 first:mt-0 last:mb-0 my-4 pl-8 pr-4 py-4">{children}</div>
+    <div className="border-l-8 rounded-r-md border-l-purple-700 dark:border-l-purple-300 bg-gradient-to-br from-violet-200 to-blue-200 dark:from-violet-800 dark:to-blue-800 first:mt-0 last:mb-0 my-4 pl-8 pr-4 py-4">
+      {children}
+    </div>
   );
 }
 

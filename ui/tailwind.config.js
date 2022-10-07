@@ -8,6 +8,8 @@ module.exports = {
     extend: {
       animation: {
         flash: "flash 1.1s ease-in-out infinite",
+        loading1: "loading1 1.1s ease-in-out infinite",
+        loading2: "loading2 1.1s ease-in-out infinite"
       },
       keyframes: {
         flash: {
@@ -18,6 +20,26 @@ module.exports = {
             opacity: 0,
           },
         },
+        loading1: {
+          "0%, 100%": {
+            transform: "translateY(-200%)",
+            animationTimingFunction: "cubic-bezier(0.8,0,1,1)"
+          },
+          "50%": {
+            transform: "none",
+            animationTimingFunction: "cubic-bezier(0,0,0.2,1)"
+          }
+        },
+        loading2: {
+          "0%, 100%": {
+            transform: "none",
+            animationTimingFunction: "cubic-bezier(0,0,0.2,1)"
+          },
+          "50%": {
+            transform: "translateY(-200%)",
+            animationTimingFunction: "cubic-bezier(0.8,0,1,1)"
+          }
+        }
       },
     },
   },

@@ -71,9 +71,7 @@ pub enum DocumentNodeTag {
     Quote,
 
     #[serde(rename = "list", rename_all = "camelCase")]
-    List {
-        is_ordered: bool,
-    },
+    List { is_ordered: bool },
 
     #[serde(rename = "listItem")]
     ListItem,

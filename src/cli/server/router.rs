@@ -76,11 +76,10 @@ async fn get_resource(
     Extension(ctx): Extension<Arc<ServerContext>>,
     Path((id,)): Path<(String,)>,
 ) -> Result<Blob, StatusCode> {
-    let id = Uuid::try_parse(&id)
-        .map_err(|_| {
-            spdlog::warn!("Invalid resource ID from client: {}", id);
-            StatusCode::BAD_REQUEST
-        })?;
+    let id = Uuid::try_parse(&id).map_err(|_| {
+        spdlog::warn!("Invalid resource ID from client: {}", id);
+        StatusCode::BAD_REQUEST
+    })?;
 
     ctx.db
         .get_resource(&id)

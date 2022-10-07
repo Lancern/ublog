@@ -13,7 +13,9 @@ function MyApp({ Component, pageProps }) {
       <div className="dark:bg-slate-900">
         <Navbar />
         <AutoFluid>
-          <Component {...pageProps} />
+          <div className="my-8">
+            <Component {...pageProps} />
+          </div>
         </AutoFluid>
       </div>
       <footer className="bg-black pt-8 pb-8">

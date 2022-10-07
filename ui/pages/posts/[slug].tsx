@@ -2,9 +2,10 @@ import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 
 import Document from "../../components/Document";
+import Loading from "../../components/Loading";
 import { TocContext, TocEntry, TocNav, TocScrollSpy } from "../../components/Toc";
 import { getPost } from "../../data/api";
-import { DocumentNode, DocumentNodeHeadingTag, Post } from "../../data/model";
+import { DocumentNode, Post } from "../../data/model";
 
 export default function PostPage(): JSX.Element {
   const router = useRouter();
@@ -21,7 +22,11 @@ export default function PostPage(): JSX.Element {
   }, []);
 
   if (post === null) {
-    return <></>;
+    return (
+      <div className="my-8">
+        <Loading />
+      </div>
+    );
   }
 
   let dateString: string;
