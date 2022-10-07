@@ -20,9 +20,9 @@ pub fn render_rich_text(rt: &RichText) -> DocumentNode {
     let rendered = match &rt.variants {
         RichTextVariants::Text { text } => {
             if rt.annotations.code {
-                render_text_rich_text(text)
-            } else {
                 render_code_rich_text(text)
+            } else {
+                render_text_rich_text(text)
             }
         }
         RichTextVariants::Equation { equation } => render_equation_rich_text(equation),

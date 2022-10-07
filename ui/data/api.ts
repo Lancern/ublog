@@ -27,8 +27,8 @@ export async function getPost(slug: string): Promise<Post | null> {
   return await response.json();
 }
 
-export function getPostResourceUrl(slug: string, name: string): URL {
-  return getApiUrl(`/api/posts/${slug}/resources/${name}`);
+export function getResourceUrl(uuid: string): URL {
+  return getApiUrl(`/api/resources/${uuid}`);
 }
 
 async function getApi(path: string, queries?: object): Promise<Response> {

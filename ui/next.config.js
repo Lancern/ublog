@@ -12,6 +12,6 @@ const nextConfig = {
     uiServerUrl: "https://localhost:3000",
     dataServerUrl: "http://localhost:8000",
   },
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;

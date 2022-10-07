@@ -28,7 +28,7 @@ function MyApp({ Component, pageProps }) {
         </AutoFluid>
       </footer>
     </>
-  )
+  );
 }
 
 export default MyApp;

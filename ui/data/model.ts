@@ -6,16 +6,16 @@ export interface Post {
   updateTimestamp: number;
   category: string;
   tags: string[];
-  content: DocumentNode
+  content: DocumentNode;
 }
 
 export interface DocumentNode {
-  tag: DocumentNodeTag,
-  children: DocumentNode[],
+  tag: DocumentNodeTag;
+  children: DocumentNode[];
 }
 
 export type DocumentNodeTag =
-  DocumentNodeRootTag
+  | DocumentNodeRootTag
   | DocumentNodeParagraphTag
   | DocumentNodeHeadingTag
   | DocumentNodeCalloutTag
@@ -69,6 +69,7 @@ export interface DocumentNodeCodeTag {
   type: "code";
   language: string;
   caption: string | null;
+  code: string;
 }
 
 export interface DocumentNodeEquationTag {
@@ -130,7 +131,7 @@ export interface DocumentResourceExternalLink {
 
 export interface DocumentResourceEmbeddedLink {
   type: "embedded";
-  name: string;
+  uuid: string;
 }
 
 export interface InlineStyle {
