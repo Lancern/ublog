@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::models::{Commit, Delta, Post, Resource};
-use crate::storage::{Pagination, Storage};
+use crate::storage::{PaginatedList, Pagination, Storage};
 
 /// A server that exposes an inner storage object through an underlying channel to a remote storage client.
 #[derive(Debug)]
@@ -209,7 +209,7 @@ where
         .await
     }
 
-    async fn get_posts(&self, pagination: &Pagination) -> Result<Vec<Post>, Self::Error> {
+    async fn get_posts(&self, pagination: &Pagination) -> Result<PaginatedList<Post>, Self::Error> {
         self.execute_request(&Request::GetPosts {
             pagination: Cow::Borrowed(pagination),
         })

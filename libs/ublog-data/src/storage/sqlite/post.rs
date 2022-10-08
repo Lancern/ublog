@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::models::{Post, Resource};
 use crate::storage::sqlite::{SqliteExt, SqliteStorageError};
-use crate::storage::Pagination;
+use crate::storage::{PaginatedList, Pagination};
 
 pub(crate) fn init_db_schema(conn: &Connection) -> Result<(), SqliteStorageError> {
     const INIT_SQL: &str = r#"
@@ -78,7 +78,7 @@ pub(super) fn get_post_with_resources(
 pub(super) fn get_posts(
     conn: &Connection,
     pagination: &Pagination,
-) -> Result<Vec<Post>, SqliteStorageError> {
+) -> Result<PaginatedList<Post>, SqliteStorageError> {
     const SELECT_SQL: &str = r#"
         SELECT title, slug, author, create_timestamp, update_timestamp, category
         FROM posts
@@ -86,8 +86,16 @@ pub(super) fn get_posts(
         LIMIT ? OFFSET ?;
     "#;
 
+    const SELECT_COUNT_SQL: &str = r#"
+        SELECT count(*) AS cnt FROM posts;
+    "#;
+
     let limit = pagination.page_size();
     let offset = pagination.skip_count();
+
+    let total_count: usize = conn
+        .query_one(SELECT_COUNT_SQL, (), |row| row.get(0).map_err(From::from))?
+        .unwrap();
 
     let mut posts =
         conn.query_many(SELECT_SQL, (limit, offset), create_post_from_row_no_content)?;
@@ -95,7 +103,10 @@ pub(super) fn get_posts(
         populate_post_tags(conn, p)?;
     }
 
-    Ok(posts)
+    Ok(PaginatedList {
+        objects: posts,
+        total_count,
+    })
 }
 
 pub(super) fn insert_post(
@@ -410,9 +421,10 @@ mod tests {
         insert_post(&conn, &post3, &[]).unwrap();
 
         let selected_posts = get_posts(&conn, &Pagination::from_page_and_size(2, 1)).unwrap();
-        assert_eq!(selected_posts.len(), 1);
+        assert_eq!(selected_posts.objects.len(), 1);
+        assert_eq!(selected_posts.total_count, 3);
 
-        let selected_post = &selected_posts[0];
+        let selected_post = &selected_posts.objects[0];
         assert_eq!(post2.title, selected_post.title);
         assert_eq!(post2.slug, selected_post.slug);
         assert_eq!(post2.author, selected_post.author);

@@ -12,7 +12,7 @@ use rusqlite::{Connection, Params, Row};
 use uuid::Uuid;
 
 use crate::models::{Commit, CommitPayload, Delta, Post, Resource};
-use crate::storage::{Pagination, Storage};
+use crate::storage::{PaginatedList, Pagination, Storage};
 
 /// Provide sqlite-based storage for databases.
 #[derive(Debug)]
@@ -130,7 +130,7 @@ impl Storage for SqliteStorage {
         crate::storage::sqlite::post::get_post_with_resources(&*conn, post_slug)
     }
 
-    async fn get_posts(&self, pagination: &Pagination) -> Result<Vec<Post>, Self::Error> {
+    async fn get_posts(&self, pagination: &Pagination) -> Result<PaginatedList<Post>, Self::Error> {
         let conn = self.lock();
         crate::storage::sqlite::post::get_posts(&*conn, pagination)
     }

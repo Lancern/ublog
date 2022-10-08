@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
 use crate::models::{Post, Resource};
-use crate::storage::{Pagination, Storage};
+use crate::storage::{PaginatedList, Pagination, Storage};
 
 /// A database instance that loads data from an underlying storage.
 #[derive(Debug)]
@@ -30,7 +30,10 @@ where
     }
 
     /// Get a view of post objects within the specified page.
-    pub async fn get_posts(&self, pagination: &Pagination) -> Result<Vec<Post>, S::Error> {
+    pub async fn get_posts(
+        &self,
+        pagination: &Pagination,
+    ) -> Result<PaginatedList<Post>, S::Error> {
         self.storage.get_posts(pagination).await
     }
 

@@ -9,7 +9,7 @@ use hyper::StatusCode;
 use serde::Deserialize;
 use tower_http::cors::{Any, CorsLayer};
 use ublog_data::models::{Post, Resource};
-use ublog_data::storage::Pagination;
+use ublog_data::storage::{PaginatedList, Pagination};
 use uuid::Uuid;
 
 use crate::cli::server::ServerContext;
@@ -38,7 +38,7 @@ const DEFAULT_ITEMS_PER_PAGE: usize = 20;
 async fn get_posts(
     Extension(ctx): Extension<Arc<ServerContext>>,
     Query(pagination): Query<PaginationParams>,
-) -> Result<Json<Vec<Post>>, StatusCode> {
+) -> Result<Json<PaginatedList<Post>>, StatusCode> {
     let page = pagination.page.unwrap_or(DEFAULT_PAGE);
     let items = pagination.items.unwrap_or(DEFAULT_ITEMS_PER_PAGE);
     let pagination = Pagination::from_page_and_size(page, items);
