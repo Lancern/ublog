@@ -9,7 +9,9 @@ module.exports = {
       animation: {
         flash: "flash 1.1s ease-in-out infinite",
         loading1: "loading1 1.1s ease-in-out infinite",
-        loading2: "loading2 1.1s ease-in-out infinite"
+        loading2: "loading2 1.1s ease-in-out infinite",
+        menuFadeIn: "menuFadeIn 0.2s ease-in-out",
+        menuFadeOut: "menuFadeOut 0.2s ease-in-out",
       },
       keyframes: {
         flash: {
@@ -23,23 +25,41 @@ module.exports = {
         loading1: {
           "0%, 100%": {
             transform: "translateY(-200%)",
-            animationTimingFunction: "cubic-bezier(0.8,0,1,1)"
+            animationTimingFunction: "cubic-bezier(0.8,0,1,1)",
           },
           "50%": {
             transform: "none",
-            animationTimingFunction: "cubic-bezier(0,0,0.2,1)"
-          }
+            animationTimingFunction: "cubic-bezier(0,0,0.2,1)",
+          },
         },
         loading2: {
           "0%, 100%": {
             transform: "none",
-            animationTimingFunction: "cubic-bezier(0,0,0.2,1)"
+            animationTimingFunction: "cubic-bezier(0,0,0.2,1)",
           },
           "50%": {
             transform: "translateY(-200%)",
-            animationTimingFunction: "cubic-bezier(0.8,0,1,1)"
-          }
-        }
+            animationTimingFunction: "cubic-bezier(0.8,0,1,1)",
+          },
+        },
+        menuFadeIn: {
+          "0%": {
+            opacity: 0,
+            transform: "translateY(-0.5rem)",
+          },
+          "100%": {
+            opacity: 1,
+          },
+        },
+        menuFadeOut: {
+          "0%": {
+            opacity: 1,
+          },
+          "100%": {
+            opacity: 0,
+            transform: "translateY(-0.5rem)",
+          },
+        },
       },
     },
   },
@@ -73,6 +93,8 @@ module.exports = {
     "bg-purple-200",
     "bg-pink-200",
     "bg-red-200",
+    "animate-fadeIn",
+    "animate-fadeOut",
     "dark:text-gray-600",
     "dark:text-amber-700",
     "dark:text-orange-400",

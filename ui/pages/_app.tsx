@@ -6,14 +6,14 @@ import Navbar from "../components/Navbar";
 
 import "../styles/globals.css";
 
-function MyApp({ Component, pageProps }) {
-  const profile = getConfig().publicRuntimeConfig.profile;
+export default function UblogApp({ Component, pageProps }) {
+  const owner = getConfig().publicRuntimeConfig.owner;
   return (
     <>
       <div className="dark:bg-slate-900">
         <Navbar />
         <AutoFluid>
-          <div className="my-8">
+          <div className="mt-28 mb-8">
             <Component {...pageProps} />
           </div>
         </AutoFluid>
@@ -23,7 +23,7 @@ function MyApp({ Component, pageProps }) {
           <div className="flex items-center">
             <Image className="rounded-full" src="/avatar-64.jpeg" height="64" width="64" />
             <div className="text-slate-400 text-sm ml-4">
-              <div>Copyright (c) {profile.nickname} 2022. All rights reserved.</div>
+              <div>Copyright (c) {owner} 2022. All rights reserved.</div>
               <div>Powered by ublog</div>
             </div>
           </div>
@@ -32,5 +32,3 @@ function MyApp({ Component, pageProps }) {
     </>
   );
 }
-
-export default MyApp;

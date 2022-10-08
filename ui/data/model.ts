@@ -1,3 +1,8 @@
+export interface PaginatedList<T> {
+  objects: T[];
+  totalCount: number;
+}
+
 export interface Post {
   title: string;
   slug: string;

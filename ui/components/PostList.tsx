@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { Post } from "../data/model";
 
@@ -23,17 +24,23 @@ interface PostListItemProps {
 }
 
 function PostListItem({ post }: PostListItemProps): JSX.Element {
-  let dateString: string;
-  if (post.createTimestamp === post.updateTimestamp) {
-    dateString = new Date(post.createTimestamp * 1000).toLocaleDateString();
-  } else {
-    dateString = new Date(post.updateTimestamp * 1000).toLocaleDateString() + " (edited)";
-  }
+  const [dateString, setDateString] = useState<string>("");
+
+  useEffect(() => {
+    // This code must be done in client-side since toLocaleDateString depends on the execution environment.
+    const ts = post.updateTimestamp;
+    const edited = post.createTimestamp !== post.updateTimestamp;
+
+    let date = new Date(ts * 1000).toLocaleDateString();
+    if (edited) {
+      date += " (edited)";
+    }
+
+    setDateString(date);
+  });
 
   const tagsString = post.tags.map((t) => `#${t}`).join(", ");
-
   const href = `/posts/${post.slug}`;
-
   return (
     <div className="py-8">
       <article>

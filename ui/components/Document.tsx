@@ -1,6 +1,6 @@
 import { MutableRefObject, PropsWithChildren } from "react";
 import { BlockMath, InlineMath } from "react-katex";
-import SyntaxHighlighter from "react-syntax-highlighter";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import "katex/dist/katex.min.css";
 
@@ -43,9 +43,9 @@ export default function Document({ root, headingIdMap, tocCtx }: DocumentProps):
 
     case "list":
       if (root.tag.isOrdered) {
-        return <ol className="list-decimal first:mt-0 last:mb-0 my-4">{getRenderedChildren()}</ol>;
+        return <ol className="list-decimal first:mt-0 last:mb-0 ml-8 my-4">{getRenderedChildren()}</ol>;
       } else {
-        return <ul className="list-disc first:mt-0 last:mb-0 my-4">{getRenderedChildren()}</ul>;
+        return <ul className="list-disc first:mt-0 last:mb-0 ml-8 my-4">{getRenderedChildren()}</ul>;
       }
 
     case "listItem":
@@ -83,7 +83,7 @@ export default function Document({ root, headingIdMap, tocCtx }: DocumentProps):
       return <span>{root.tag.text}</span>;
 
     case "inlineCode":
-      return <code className="px-2 py-1 rounded-md bg-gray-200 dark:bg-gray-700 text-sm">{root.tag.code}</code>;
+      return <code className="px-2 py-1 rounded-md bg-gray-200 dark:bg-gray-700 text-[0.85em]">{root.tag.code}</code>;
 
     case "inlineEquation":
       return <InlineMath math={root.tag.expr} />;
@@ -144,9 +144,7 @@ interface CalloutProps {
 function Callout({ emoji, children }: PropsWithChildren<CalloutProps>): JSX.Element {
   return (
     <div className="flex rounded-md p-4 gap-4 bg-gradient-to-br from-violet-200 to-blue-200 dark:from-violet-800 dark:to-blue-800 first:mt-0 last:mb-0 my-4">
-      <div className="flex-none text-3xl">
-        {emoji}
-      </div>
+      <div className="flex-none text-3xl">{emoji}</div>
       <div className="flex-grow">{children}</div>
     </div>
   );

@@ -1,5 +1,6 @@
+import { GetStaticPathsResult, GetStaticPropsContext, GetStaticPropsResult } from "next";
 import { useRouter } from "next/router";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 
 import Document from "../../components/Document";
 import Loading from "../../components/Loading";
@@ -7,21 +8,15 @@ import { TocContext, TocEntry, TocNav, TocScrollSpy } from "../../components/Toc
 import { getPost } from "../../data/api";
 import { DocumentNode, Post } from "../../data/model";
 
-export default function PostPage(): JSX.Element {
+interface PostPageProps {
+  post: Post;
+}
+
+export default function PostPage({ post }: PostPageProps): JSX.Element {
   const router = useRouter();
-  const [post, setPost] = useState<Post | null>(null);
   const tocCtxRef = useRef(new TocContext());
 
-  useEffect(() => {
-    if (!router.isReady) {
-      return;
-    }
-
-    const postSlug = router.query["slug"] as string;
-    getPost(postSlug).then(setPost);
-  }, []);
-
-  if (post === null) {
+  if (!router.isReady || router.isFallback) {
     return (
       <div className="my-8">
         <Loading />
@@ -38,8 +33,8 @@ export default function PostPage(): JSX.Element {
 
   const tocInfo = getDocumentTocInfo(post.content);
   return (
-    <div className="my-8 dark:text-gray-200 selection:bg-gray-700 selection:text-white dark:selection:bg-gray-200 dark:selection:text-black">
-      <div className="my-8">
+    <div className="dark:text-gray-200 selection:bg-gray-700 selection:text-white dark:selection:bg-gray-200 dark:selection:text-black">
+      <header>
         <h1 className="font-bold text-4xl mb-8">{post.title}</h1>
         <div className="flex items-center text-slate-600 dark:text-slate-400 text-sm my-2">
           <svg
@@ -61,21 +56,38 @@ export default function PostPage(): JSX.Element {
         <div className="text-slate-600 dark:text-slate-400 text-sm my-2">
           {post.category} | {post.tags.map((tag) => "#" + tag).join(", ")}
         </div>
-      </div>
+      </header>
       <hr className="my-8 dark:border-slate-700" />
-      <div className="flex my-8 gap-x-6">
-        <div className="w-3/4">
+      <div className="flex my-8 md:gap-x-6">
+        <div className="md:w-3/4">
           <Document root={post.content} headingIdMap={tocInfo.headingIdMap} tocCtx={tocCtxRef} />
         </div>
-        <div className="w-1/4">
-          <div className="sticky top-8">
+        <div className="hidden md:block md:w-1/4">
+          <div className="sticky top-28">
             <TocNav entries={tocInfo.entries} ctx={tocCtxRef} />
           </div>
         </div>
+        <TocScrollSpy ctx={tocCtxRef} />
       </div>
-      <TocScrollSpy ctx={tocCtxRef} />
     </div>
   );
+}
+
+export async function getStaticProps({ params }: GetStaticPropsContext): Promise<GetStaticPropsResult<PostPageProps>> {
+  const slug = params.slug as string;
+  const post = await getPost(slug);
+
+  return {
+    props: { post },
+    revalidate: 60,
+  };
+}
+
+export async function getStaticPaths(): Promise<GetStaticPathsResult> {
+  return {
+    paths: [],
+    fallback: true,
+  };
 }
 
 interface DocumentTocInfo {

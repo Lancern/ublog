@@ -7,7 +7,7 @@ export interface PaginatorProps {
 }
 
 export default function Paginator({ currentPage, maxPage, onPageChanged }: PaginatorProps): JSX.Element {
-  const shownPagesSet = new Set([1, 2, 3, currentPage - 1, currentPage, currentPage + 1, maxPage ]);
+  const shownPagesSet = new Set([1, 2, 3, currentPage - 1, currentPage, currentPage + 1, maxPage]);
   const shownPages = Array.from(shownPagesSet).filter((page) => page >= 1 && page <= maxPage);
   shownPages.sort((lhs, rhs) => lhs - rhs);
 
@@ -35,7 +35,12 @@ export default function Paginator({ currentPage, maxPage, onPageChanged }: Pagin
   });
 
   items.push(
-    <PaginatorButton key={-2} disabled={currentPage >= maxPage} targetPage={currentPage + 1} onPageChanged={onPageChanged}>
+    <PaginatorButton
+      key={-2}
+      disabled={currentPage >= maxPage}
+      targetPage={currentPage + 1}
+      onPageChanged={onPageChanged}
+    >
       Next
     </PaginatorButton>
   );
@@ -51,13 +56,12 @@ interface PaginatorButtonProps {
 }
 
 function PaginatorButton({
-    targetPage,
-    active,
-    disabled,
-    onPageChanged,
-    children
-  }: PropsWithChildren<PaginatorButtonProps>
-): JSX.Element {
+  targetPage,
+  active,
+  disabled,
+  onPageChanged,
+  children,
+}: PropsWithChildren<PaginatorButtonProps>): JSX.Element {
   const invokePageChanged = (page: number) => {
     if (onPageChanged) {
       onPageChanged(page);
@@ -91,9 +95,5 @@ function PaginatorButton({
 }
 
 function PaginatorSeparator(): JSX.Element {
-  return (
-    <div className="flex justify-center p-2 min-w-[2.5rem]">
-      ...
-    </div>
-  );
+  return <div className="flex justify-center p-2 min-w-[2.5rem]">...</div>;
 }

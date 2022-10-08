@@ -3,14 +3,8 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   publicRuntimeConfig: {
-    profile: {
-      nickname: "Lancern",
-      name: "Sirui Mu",
-      area: "Developer / System Security",
-      organization: "Tsinghua University",
-    },
-    uiServerUrl: "https://localhost:3000",
-    dataServerUrl: "http://localhost:8000",
+    owner: "Lancern",
+    dataServerUrl: "http://127.0.0.1:8000",
   },
 };
 

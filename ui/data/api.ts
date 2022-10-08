@@ -1,6 +1,6 @@
 import getConfig from "next/config";
 
-import { Post } from "./model";
+import { PaginatedList, Post } from "./model";
 
 export interface Pagination {
   page?: number;
@@ -10,7 +10,7 @@ export interface Pagination {
 const DEFAULT_PAGE = 1;
 const DEFAULT_ITEMS_PER_PAGE = 20;
 
-export async function getPosts(pagination?: Pagination): Promise<Post[]> {
+export async function getPosts(pagination?: Pagination): Promise<PaginatedList<Post>> {
   const page = pagination?.page ?? DEFAULT_PAGE;
   const items = pagination?.itemsPerPage ?? DEFAULT_ITEMS_PER_PAGE;
 
@@ -37,9 +37,7 @@ async function getApi(path: string, queries?: object): Promise<Response> {
 }
 
 function getApiUrl(path: string, queries?: object): URL {
-  const { dataServerUrl, uiServerUrl } = getConfig().publicRuntimeConfig;
-  const serverUrl: string = dataServerUrl ?? uiServerUrl;
-
+  const serverUrl = getConfig().publicRuntimeConfig.dataServerUrl;
   const url = new URL(path, serverUrl);
 
   if (queries !== undefined) {
