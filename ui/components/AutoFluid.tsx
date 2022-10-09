@@ -7,7 +7,7 @@ import React from "react";
 export default function AutoFluid(props: React.PropsWithChildren<{}>): JSX.Element {
   return (
     <div className="lg:flex lg:justify-center lg:px-0 px-2">
-      <div className="lg:w-2/3 xl:w-1/2">{props.children}</div>
+      <div className="lg:w-[1024px]">{props.children}</div>
     </div>
   );
 }

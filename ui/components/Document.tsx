@@ -210,7 +210,7 @@ function Image({ resourceLink, caption }: ImageProps) {
   return (
     <WithCaption caption={caption}>
       <div className="flex justify-center">
-        <img className="max-w-full" src={href} alt={caption ?? ""} />
+        <img className="max-w-full sm:max-w-lg" src={href} alt={caption ?? ""} />
       </div>
     </WithCaption>
   );

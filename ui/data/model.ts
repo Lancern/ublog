@@ -11,6 +11,7 @@ export interface Post {
   updateTimestamp: number;
   category: string;
   tags: string[];
+  isSpecial: boolean;
   content: DocumentNode;
 }
 
