@@ -41,7 +41,7 @@ where
 
     posts_pages
         .iter()
-        .map(crate::blog::schema::create_post_from_page)
+        .map(crate::blog::schema::create_post_from_notion_page)
         .collect::<Result<_, _>>()
         .map_err(NotionBlogError::from)
 }

@@ -29,12 +29,15 @@ where
         self.storage.get_post(slug).await
     }
 
-    /// Get a view of post objects within the specified page.
+    /// Get a view of post within the specified page.
+    ///
+    /// The `special` parameter indicates whether the target posts is special posts.
     pub async fn get_posts(
         &self,
+        special: bool,
         pagination: &Pagination,
     ) -> Result<PaginatedList<Post>, S::Error> {
-        self.storage.get_posts(pagination).await
+        self.storage.get_posts(special, pagination).await
     }
 
     /// Insert the given post into the database.

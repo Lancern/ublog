@@ -36,8 +36,8 @@ pub fn get_query_posts_db_params() -> QueryDatabaseParams {
     }
 }
 
-/// Create a [`Post`] object from the corresponding Notion page.
-pub fn create_post_from_page(page: &Page) -> Result<NotionPost, NotionBlogError> {
+/// Create a [`Post`] object in the blog posts namespace from the corresponding Notion page.
+pub fn create_post_from_notion_page(page: &Page) -> Result<NotionPost, NotionBlogError> {
     let title = TITLE_PROPERTY.get_str_value(page);
     let slug = SLUG_PROPERTY.get_str_value(page);
     let author = AUTHOR_PROPERTY.get_str_value(page);
@@ -45,6 +45,7 @@ pub fn create_post_from_page(page: &Page) -> Result<NotionPost, NotionBlogError>
     let update_timestamp = UPDATE_DATE_PROPERTY.get_timestamp_value(page);
     let category = CATEGORY_PROPERTY.get_str_value(page);
     let tags = TAGS_PROPERTY.get_str_list_value(page);
+    let is_special = SPECIAL_PROPERTY.get_checkbox_value(page);
 
     let post = NotionPost {
         notion_page_id: page.id.clone(),
@@ -56,6 +57,7 @@ pub fn create_post_from_page(page: &Page) -> Result<NotionPost, NotionBlogError>
             update_timestamp,
             category,
             tags,
+            is_special,
             content: DocumentNode::new_empty(),
         },
     };
@@ -101,6 +103,7 @@ declare_property_desc!(UPDATE_DATE_PROPERTY, update_date, Date);
 declare_property_desc!(CATEGORY_PROPERTY, category, Select);
 declare_property_desc!(TAGS_PROPERTY, tags, MultiSelect);
 declare_property_desc!(PUBLISHED_PROPERTY, published, Checkbox);
+declare_property_desc!(SPECIAL_PROPERTY, special, Checkbox);
 
 const SCHEMA_PROPERTIES: &[SchemaPropertyDescriptor] = &[
     TITLE_PROPERTY,
@@ -111,6 +114,7 @@ const SCHEMA_PROPERTIES: &[SchemaPropertyDescriptor] = &[
     CATEGORY_PROPERTY,
     TAGS_PROPERTY,
     PUBLISHED_PROPERTY,
+    SPECIAL_PROPERTY,
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -153,6 +157,14 @@ impl SchemaPropertyDescriptor {
 
         let date = Date::parse(&date_prop.start, &Iso8601::DEFAULT).unwrap();
         date.midnight().assume_utc().unix_timestamp()
+    }
+
+    fn get_checkbox_value(&self, page: &Page) -> bool {
+        let prop = self.get_property_value(page);
+        match prop {
+            PropertyValue::Checkbox { checkbox } => *checkbox,
+            _ => unreachable!(),
+        }
     }
 
     fn get_property_value<'p>(&self, page: &'p Page) -> &'p PropertyValue {

@@ -81,8 +81,11 @@ where
             Request::GetPostWithResources { post_slug } => {
                 process_request!(self, self.inner.get_post_with_resources(&*post_slug));
             }
-            Request::GetPosts { pagination } => {
-                process_request!(self, self.inner.get_posts(&*pagination));
+            Request::GetPosts {
+                special,
+                pagination,
+            } => {
+                process_request!(self, self.inner.get_posts(special, &*pagination));
             }
             Request::InsertResource { resource } => {
                 process_request!(self, self.inner.insert_resource(&*resource));
@@ -209,8 +212,13 @@ where
         .await
     }
 
-    async fn get_posts(&self, pagination: &Pagination) -> Result<PaginatedList<Post>, Self::Error> {
+    async fn get_posts(
+        &self,
+        special: bool,
+        pagination: &Pagination,
+    ) -> Result<PaginatedList<Post>, Self::Error> {
         self.execute_request(&Request::GetPosts {
+            special,
             pagination: Cow::Borrowed(pagination),
         })
         .await
@@ -302,6 +310,7 @@ enum Request<'a> {
         post_slug: Cow<'a, str>,
     },
     GetPosts {
+        special: bool,
         pagination: Cow<'a, Pagination>,
     },
     InsertResource {

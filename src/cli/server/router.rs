@@ -44,7 +44,7 @@ async fn get_posts(
     let pagination = Pagination::from_page_and_size(page, items);
 
     ctx.db
-        .get_posts(&pagination)
+        .get_posts(false, &pagination)
         .await
         .map(Json)
         .map_err(|err| {

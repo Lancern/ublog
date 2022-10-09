@@ -130,9 +130,13 @@ impl Storage for SqliteStorage {
         crate::storage::sqlite::post::get_post_with_resources(&*conn, post_slug)
     }
 
-    async fn get_posts(&self, pagination: &Pagination) -> Result<PaginatedList<Post>, Self::Error> {
+    async fn get_posts(
+        &self,
+        special: bool,
+        pagination: &Pagination,
+    ) -> Result<PaginatedList<Post>, Self::Error> {
         let conn = self.lock();
-        crate::storage::sqlite::post::get_posts(&*conn, pagination)
+        crate::storage::sqlite::post::get_posts(&*conn, special, pagination)
     }
 
     async fn insert_resource(&self, resource: &Resource) -> Result<(), Self::Error> {

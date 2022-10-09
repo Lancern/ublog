@@ -31,7 +31,11 @@ pub trait Storage: Send + Sync {
         &self,
         post_slug: &str,
     ) -> Result<Option<(Post, Vec<Resource>)>, Self::Error>;
-    async fn get_posts(&self, pagination: &Pagination) -> Result<PaginatedList<Post>, Self::Error>;
+    async fn get_posts(
+        &self,
+        special: bool,
+        pagination: &Pagination,
+    ) -> Result<PaginatedList<Post>, Self::Error>;
 
     async fn insert_resource(&self, resource: &Resource) -> Result<(), Self::Error>;
     async fn delete_resource(&self, resource_id: &Uuid) -> Result<(), Self::Error>;

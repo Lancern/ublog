@@ -29,6 +29,10 @@ pub struct Post {
     /// The post's tags.
     pub tags: Vec<String>,
 
+    /// Is this post a special post?
+    #[serde(rename = "isSpecial")]
+    pub is_special: bool,
+
     /// Content of the post.
     pub content: DocumentNode,
 }

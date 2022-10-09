@@ -15,6 +15,7 @@ pub(crate) fn init_db_schema(conn: &Connection) -> Result<(), SqliteStorageError
             create_timestamp INTEGER NOT NULL,
             update_timestamp INTEGER NOT NULL,
             category         TEXT NOT NULL,
+            is_special       INTEGER NOT NULL,
             content          BLOB NOT NULL
         );
 
@@ -47,7 +48,7 @@ pub(super) fn get_post(
     post_slug: &str,
 ) -> Result<Option<Post>, SqliteStorageError> {
     const SELECT_SQL: &str = r#"
-        SELECT title, slug, author, create_timestamp, update_timestamp, category, content
+        SELECT title, slug, author, create_timestamp, update_timestamp, category, is_special, content
         FROM posts
         WHERE slug == ?;
     "#;
@@ -77,28 +78,38 @@ pub(super) fn get_post_with_resources(
 
 pub(super) fn get_posts(
     conn: &Connection,
+    special: bool,
     pagination: &Pagination,
 ) -> Result<PaginatedList<Post>, SqliteStorageError> {
     const SELECT_SQL: &str = r#"
-        SELECT title, slug, author, create_timestamp, update_timestamp, category
+        SELECT title, slug, author, create_timestamp, update_timestamp, category, is_special
         FROM posts
+        WHERE is_special == ?
         ORDER BY create_timestamp DESC
         LIMIT ? OFFSET ?;
     "#;
 
     const SELECT_COUNT_SQL: &str = r#"
-        SELECT count(*) AS cnt FROM posts;
+        SELECT count(*) AS cnt
+        FROM posts
+        WHERE is_special == ?;
     "#;
 
+    let is_special = if special { 1 } else { 0 };
     let limit = pagination.page_size();
     let offset = pagination.skip_count();
 
     let total_count: usize = conn
-        .query_one(SELECT_COUNT_SQL, (), |row| row.get(0).map_err(From::from))?
+        .query_one(SELECT_COUNT_SQL, (is_special,), |row| {
+            row.get(0).map_err(From::from)
+        })?
         .unwrap();
 
-    let mut posts =
-        conn.query_many(SELECT_SQL, (limit, offset), create_post_from_row_no_content)?;
+    let mut posts = conn.query_many(
+        SELECT_SQL,
+        (is_special, limit, offset),
+        create_post_from_row_no_content,
+    )?;
     for p in &mut posts {
         populate_post_tags(conn, p)?;
     }
@@ -115,10 +126,11 @@ pub(super) fn insert_post(
     post_resources: &[Resource],
 ) -> Result<(), SqliteStorageError> {
     const INSERT_POST_SQL: &str = r#"
-        INSERT INTO posts (title, slug, author, create_timestamp, update_timestamp, category, content)
-        VALUES (?, ?, ?, ?, ?, ?, ?);
+        INSERT INTO posts (title, slug, author, create_timestamp, update_timestamp, category, is_special, content)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
     "#;
 
+    let is_special = if post.is_special { 1 } else { 0 };
     let content_data = bson::to_vec(&post.content).unwrap();
 
     // Insert the post object into the database.
@@ -131,6 +143,7 @@ pub(super) fn insert_post(
             post.create_timestamp,
             post.update_timestamp,
             &post.category,
+            is_special,
             &content_data,
         ),
     )?;
@@ -251,6 +264,7 @@ fn create_post_from_row(row: &Row) -> Result<Post, SqliteStorageError> {
         update_timestamp: row.get("update_timestamp")?,
         category: row.get("category")?,
         tags: Vec::new(),
+        is_special: row.get::<_, i32>("is_special")? != 0,
         content,
     })
 }
@@ -264,6 +278,7 @@ fn create_post_from_row_no_content(row: &Row) -> Result<Post, SqliteStorageError
         update_timestamp: row.get("update_timestamp")?,
         category: row.get("category")?,
         tags: Vec::new(),
+        is_special: row.get::<_, i32>("is_special")? != 0,
         content: DocumentNode::new_empty(),
     })
 }
@@ -306,6 +321,7 @@ mod tests {
             update_timestamp: 0,
             category: String::from("category"),
             tags: Vec::new(),
+            is_special: false,
             content: DocumentNode::new_empty(),
         };
         insert_post(&conn, &post, &[]).unwrap();
@@ -323,6 +339,7 @@ mod tests {
             update_timestamp: 0,
             category: String::from("category"),
             tags: Vec::new(),
+            is_special: false,
             content: DocumentNode::new_empty(),
         };
         insert_post(&conn, &post, &[]).unwrap();
@@ -343,6 +360,7 @@ mod tests {
             update_timestamp: 0,
             category: String::from("category"),
             tags: vec![String::from("tag1"), String::from("tag2")],
+            is_special: false,
             content: DocumentNode::new_empty(),
         };
         insert_post(&conn, &post, &[]).unwrap();
@@ -366,6 +384,7 @@ mod tests {
             update_timestamp: 0,
             category: String::from("category"),
             tags: vec![String::from("tag1"), String::from("tag2")],
+            is_special: false,
             content: DocumentNode::new_empty(),
         };
         insert_post(&conn, &post, &[]).unwrap();
@@ -400,6 +419,7 @@ mod tests {
             update_timestamp: 30,
             category: String::from("category"),
             tags: vec![String::from("tag1"), String::from("tag2")],
+            is_special: false,
             content: DocumentNode::new_empty(),
         };
         insert_post(&conn, &post1, &[]).unwrap();
@@ -420,7 +440,8 @@ mod tests {
         };
         insert_post(&conn, &post3, &[]).unwrap();
 
-        let selected_posts = get_posts(&conn, &Pagination::from_page_and_size(2, 1)).unwrap();
+        let selected_posts =
+            get_posts(&conn, false, &Pagination::from_page_and_size(2, 1)).unwrap();
         assert_eq!(selected_posts.objects.len(), 1);
         assert_eq!(selected_posts.total_count, 3);
 
@@ -446,6 +467,7 @@ mod tests {
             update_timestamp: 0,
             category: String::from("category"),
             tags: Vec::new(),
+            is_special: false,
             content: DocumentNode::new_empty(),
         };
         insert_post(&conn, &post, &[]).unwrap();

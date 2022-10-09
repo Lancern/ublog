@@ -1601,6 +1601,7 @@ dependencies = [
  "tokio-rustls",
  "tower-http",
  "ublog-data",
+ "ublog-doc",
  "ublog-notion",
  "uuid",
 ]
