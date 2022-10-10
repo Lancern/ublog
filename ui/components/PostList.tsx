@@ -37,7 +37,7 @@ function PostListItem({ post }: PostListItemProps): JSX.Element {
     }
 
     setDateString(date);
-  });
+  }, [post.createTimestamp, post.updateTimestamp]);
 
   const tagsString = post.tags.map((t) => `#${t}`).join(", ");
   const href = `/posts/${post.slug}`;

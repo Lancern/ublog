@@ -262,7 +262,7 @@ function Inline({ style, link, children }: PropsWithChildren<InlineProps>): JSX.
 
   if (link !== null) {
     return (
-      <a className={className} href={link} target="_blank">
+      <a className={className} href={link} target="_blank" rel="noreferrer">
         {children}
       </a>
     );

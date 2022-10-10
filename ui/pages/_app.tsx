@@ -21,7 +21,7 @@ export default function UblogApp({ Component, pageProps }) {
       <footer className="bg-black pt-8 pb-8">
         <AutoFluid>
           <div className="flex items-center">
-            <Image className="rounded-full" src="/avatar-64.jpeg" height="64" width="64" />
+            <Image className="rounded-full" src="/avatar-64.jpeg" height="64" width="64" alt="avatar" />
             <div className="text-slate-400 text-sm ml-4">
               <div>Copyright (c) {owner} 2022. All rights reserved.</div>
               <div>Powered by ublog</div>

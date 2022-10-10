@@ -17,7 +17,7 @@ export default function Navbar(): JSX.Element {
         <div className="flex justify-center sm:justify-around items-center h-20">
           <Link href="/">
             <div className="flex-grow sm:flex-none flex justify-center sm:justify-start items-center cursor-pointer">
-              <Image className="rounded-full" src="/avatar-64.jpeg" width="48" height="48" />
+              <Image className="rounded-full" src="/avatar-64.jpeg" width="48" height="48" alt="avatar" />
               <div className="dark:text-white text-lg ml-2 font-bold">
                 {owner}
                 <span className="ml-1 text-purple-600 dark:text-purple-500 animate-flash">▂</span>
