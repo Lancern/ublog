@@ -10,6 +10,11 @@ use ublog_notion::blog::NotionPost;
 use crate::{fallible_step, FetchNotionArgs};
 
 pub(crate) async fn fetch_notion(args: &FetchNotionArgs) -> Result<(), Box<dyn Error>> {
+    fallible_step!(
+        "initialize logger",
+        crate::utils::logging::init_basic_logger(args.debug)
+    );
+
     let notion_api = NotionApi::new(&args.token);
 
     let db_storage = fallible_step!(

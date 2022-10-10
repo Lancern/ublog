@@ -6,13 +6,14 @@ use axum::routing::get;
 use axum::{Extension, Json, Router};
 use http::{HeaderMap, HeaderValue};
 use hyper::StatusCode;
+use rss::Channel as RssChannel;
 use serde::Deserialize;
 use tower_http::cors::{Any, CorsLayer};
 use ublog_data::models::{Post, Resource};
 use ublog_data::storage::{PaginatedList, Pagination};
 use uuid::Uuid;
 
-use crate::cli::server::ServerContext;
+use crate::server::ServerContext;
 
 /// Create a router for the server.
 pub(super) fn create_router(ctx: Arc<ServerContext>) -> Router {
@@ -20,6 +21,7 @@ pub(super) fn create_router(ctx: Arc<ServerContext>) -> Router {
         .route("/api/posts", get(get_posts))
         .route("/api/posts/:slug", get(get_post))
         .route("/api/resources/:id", get(get_resource))
+        .route("/api/rss", get(get_rss))
         .layer(CorsLayer::new().allow_methods(Any).allow_origin(Any))
         .layer(Extension(ctx))
 }
@@ -75,7 +77,7 @@ async fn get_post(
 async fn get_resource(
     Extension(ctx): Extension<Arc<ServerContext>>,
     Path((id,)): Path<(String,)>,
-) -> Result<Blob, StatusCode> {
+) -> Result<WithContentType<Vec<u8>>, StatusCode> {
     let id = Uuid::try_parse(&id).map_err(|_| {
         spdlog::warn!("Invalid resource ID from client: {}", id);
         StatusCode::BAD_REQUEST
@@ -91,22 +93,47 @@ async fn get_resource(
         .and_then(|resource| resource.ok_or(StatusCode::NOT_FOUND).map(From::from))
 }
 
-#[derive(Clone, Debug)]
-struct Blob {
-    content_type: String,
-    data: Vec<u8>,
+async fn get_rss(
+    Extension(ctx): Extension<Arc<ServerContext>>,
+) -> Result<WithContentType<Vec<u8>>, StatusCode> {
+    ctx.rss_cache
+        .get(|| crate::server::feed::compute_rss(ctx.clone()))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map(|channel| WithContentType::from(&*channel))
 }
 
-impl From<Resource> for Blob {
+#[derive(Clone, Debug)]
+struct WithContentType<T> {
+    content_type: String,
+    other: T,
+}
+
+impl From<Resource> for WithContentType<Vec<u8>> {
     fn from(res: Resource) -> Self {
         Self {
             content_type: res.ty,
-            data: res.data,
+            other: res.data,
         }
     }
 }
 
-impl IntoResponse for Blob {
+impl<'a> From<&'a RssChannel> for WithContentType<Vec<u8>> {
+    fn from(chan: &'a RssChannel) -> Self {
+        let mut chan_xml: Vec<u8> = Vec::new();
+        chan.write_to(&mut chan_xml).unwrap();
+
+        Self {
+            content_type: String::from(RSS_CONTENT_TYPE),
+            other: chan_xml,
+        }
+    }
+}
+
+impl<T> IntoResponse for WithContentType<T>
+where
+    T: IntoResponse,
+{
     fn into_response(self) -> Response {
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -114,6 +141,8 @@ impl IntoResponse for Blob {
             HeaderValue::from_str(&self.content_type).unwrap(),
         );
 
-        (headers, self.data).into_response()
+        (headers, self.other).into_response()
     }
 }
+
+const RSS_CONTENT_TYPE: &str = "application/rss+xml";
