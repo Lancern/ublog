@@ -1,23 +1,19 @@
 pub(crate) mod config;
 mod feed;
 mod router;
-mod tls;
 
 use std::error::Error;
 use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 use std::sync::Arc;
 
-use axum::{Router, Server};
-use hyper::server::accept::Accept;
+use axum::Server;
 use hyper::server::conn::AddrIncoming;
 use rss::Channel as RssChannel;
-use tokio::io::{AsyncRead, AsyncWrite};
 use ublog_data::db::Database;
 use ublog_data::storage::sqlite::SqliteStorage;
 
 use crate::server::config::SiteConfig;
-use crate::server::tls::TlsAddrIncoming;
 use crate::utils::cache::Cache;
 use crate::{fallible_step, ServerArgs};
 
@@ -44,18 +40,14 @@ pub(crate) async fn serve(args: &ServerArgs) -> Result<(), Box<dyn Error>> {
     let addr: IpAddr = fallible_step!("parse server address", args.addr.parse());
     let server_addr = SocketAddr::new(addr, args.port);
 
-    if let Some(cert) = &args.cert {
-        let acceptor = fallible_step!(
-            "initialize TLS acceptor",
-            TlsAddrIncoming::new(cert, &server_addr)
-        );
-        spdlog::info!("Starting HTTPS server at {}", server_addr);
-        serve_with(acceptor, router).await?;
-    } else {
-        let acceptor = fallible_step!("initialize TCP acceptor", AddrIncoming::bind(&server_addr));
-        spdlog::info!("Starting HTTP server at {}", server_addr);
-        serve_with(acceptor, router).await?;
-    }
+    spdlog::info!("Starting HTTP server at {}", server_addr);
+    let acceptor = fallible_step!("initialize TCP acceptor", AddrIncoming::bind(&server_addr));
+    fallible_step!(
+        "run server",
+        Server::builder(acceptor)
+            .serve(router.into_make_service())
+            .await
+    );
 
     Ok(())
 }
@@ -65,26 +57,8 @@ where
     P: AsRef<Path>,
 {
     let config_json = fallible_step!("read site config", tokio::fs::read_to_string(path).await);
-
     let config = fallible_step!("parse site config", serde_json::from_str(&config_json));
-
     Ok(config)
-}
-
-async fn serve_with<A>(acceptor: A, router: Router) -> Result<(), Box<dyn Error>>
-where
-    A: Accept,
-    A::Conn: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    A::Error: Into<Box<dyn Error + Send + Sync>>,
-{
-    fallible_step!(
-        "run server",
-        Server::builder(acceptor)
-            .serve(router.into_make_service())
-            .await
-    );
-
-    Ok(())
 }
 
 #[derive(Debug)]

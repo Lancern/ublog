@@ -20,6 +20,9 @@ where
     const MAX_FILES: usize = 30;
 
     init_logger(debug, |builder| {
+        let mut logs_dir = logs_dir.into();
+        logs_dir.push("ublog.log");
+
         let log_file_sink = fallible_step!(
             "initialize rotating log file sink",
             RotatingFileSink::new(logs_dir, ROTATION_POLICY, MAX_FILES, false)

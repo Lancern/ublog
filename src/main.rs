@@ -84,12 +84,6 @@ struct ServerArgs {
     #[structopt(short, long, default_value = "8000")]
     port: u16,
 
-    /// Path to the certificate file.
-    ///
-    /// If this argument is missing, an HTTP server will be started.
-    #[structopt(short, long)]
-    cert: Option<PathBuf>,
-
     /// Path to the site information file.
     #[structopt(short, long, default_value = "site.json")]
     site: PathBuf,

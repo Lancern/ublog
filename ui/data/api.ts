@@ -37,7 +37,9 @@ async function getApi(path: string, queries?: object): Promise<Response> {
 }
 
 function getApiUrl(path: string, queries?: object): URL {
-  const serverUrl = getConfig().publicRuntimeConfig.dataServerUrl;
+  const { serverRuntimeConfig, publicRuntimeConfig } = getConfig();
+  const serverUrl = serverRuntimeConfig?.dataServerUrl ?? publicRuntimeConfig.dataServerUrl;
+
   const url = new URL(path, serverUrl);
 
   if (queries !== undefined) {
