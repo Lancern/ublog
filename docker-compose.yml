@@ -1,9 +1,6 @@
 services:
   nginx:
     build: ./nginx
-    networks:
-      - host
-      - ublog-net
     ports:
       - 443:443/tcp
     volumes:
@@ -13,10 +10,8 @@ services:
       - type: bind
         source: /path/to/sslcert.key
         target: /ublog-site/sslcert.key
-  ublog-server:
+  server:
     build: ./
-    networks:
-      - ublog-net
     volumes:
       - type: bind
         source: /path/to/ublog.db
@@ -25,15 +20,8 @@ services:
         source: /path/to/site.json
         target: /ublog-site/site.json
     command: serve -p 30000 -l logs
-  ublog-ui:
+  ui:
     build: ./ui
-    networks:
-      - ublog-net
     command: -p 30000
     depends_on:
-      - ublog
-networks:
-  hostnet:
-    external: true
-    name: host
-  ublog-net:
+      - server

@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   serverRuntimeConfig: {
-    dataServerUrl: "http://ublog-server:30000",
+    dataServerUrl: "http://server:30000",
   },
   publicRuntimeConfig: {
     owner: "Lancern",
