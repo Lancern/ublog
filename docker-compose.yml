@@ -24,7 +24,7 @@ services:
       - type: bind
         source: /path/to/site.json
         target: /ublog-site/site.json
-    command: serve -p 30000
+    command: serve -p 30000 -l logs
   ublog-ui:
     build: ./ui
     networks:
