@@ -5,4 +5,5 @@ COPY . .
 
 RUN cargo install --path .
 
+WORKDIR /ublog-site
 ENTRYPOINT ["ublog"]

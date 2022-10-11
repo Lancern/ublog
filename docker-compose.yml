@@ -1,0 +1,35 @@
+services:
+  nginx:
+    build: ./nginx
+    networks:
+      - host
+      - ublog-net
+    volumes:
+      - type: bind
+        source: /path/to/sslcert.pem
+        target: /ublog-site/sslcert.pem
+      - type: bind
+        source: /path/to/sslcert.key
+        target: /ublog-site/sslcert.key
+  ublog:
+    build: ./
+    networks:
+      - ublog-net
+    volumes:
+      - type: bind
+        source: /path/to/ublog.db
+        target: ./ublog.db
+      - type: bind
+        source: /path/to/site.json
+        target: ./site.json
+    command: serve -p 30000
+  ui:
+    build: ./ui
+    networks:
+      - ublog-net
+    command: -p 30001
+networks:
+  hostnet:
+    external: true
+    name: host
+  ublog-net:

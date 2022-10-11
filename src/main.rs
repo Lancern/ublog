@@ -77,7 +77,7 @@ struct FetchNotionArgs {
 #[structopt(name = "serve", about = "Start ublog backend service")]
 struct ServerArgs {
     /// The address the server binds to.
-    #[structopt(short, long, default_value = "127.0.0.1")]
+    #[structopt(short, long, default_value = "0.0.0.0")]
     addr: String,
 
     /// The port the server listens on.
