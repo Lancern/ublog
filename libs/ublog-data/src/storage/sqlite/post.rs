@@ -32,7 +32,7 @@ pub(crate) fn init_db_schema(conn: &Connection) -> Result<(), SqliteStorageError
 
         CREATE TABLE IF NOT EXISTS posts_resources (
             post_slug TEXT NOT NULL REFERENCES posts(slug) ON DELETE CASCADE,
-            res_id    TEXT NOT NULL REFERENCES resources(id)
+            res_id    TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE
         );
 
         CREATE UNIQUE INDEX IF NOT EXISTS posts_resources_idx_uniq ON posts_resources (post_slug, res_id);
