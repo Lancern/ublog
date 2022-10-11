@@ -3,11 +3,11 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   serverRuntimeConfig: {
-    dataServerUrl: "http://127.0.0.1:8000",
+    dataServerUrl: "http://ublog-server:30000",
   },
   publicRuntimeConfig: {
     owner: "Lancern",
-    dataServerUrl: "http://127.0.0.1:8000",
+    dataServerUrl: "https://lancern.xyz",
   },
 };
 

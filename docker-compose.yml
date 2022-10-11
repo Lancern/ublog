@@ -4,6 +4,8 @@ services:
     networks:
       - host
       - ublog-net
+    ports:
+      - 443:443/tcp
     volumes:
       - type: bind
         source: /path/to/sslcert.pem
@@ -11,23 +13,25 @@ services:
       - type: bind
         source: /path/to/sslcert.key
         target: /ublog-site/sslcert.key
-  ublog:
+  ublog-server:
     build: ./
     networks:
       - ublog-net
     volumes:
       - type: bind
         source: /path/to/ublog.db
-        target: ./ublog.db
+        target: /ublog-site/ublog.db
       - type: bind
         source: /path/to/site.json
-        target: ./site.json
+        target: /ublog-site/site.json
     command: serve -p 30000
-  ui:
+  ublog-ui:
     build: ./ui
     networks:
       - ublog-net
-    command: -p 30001
+    command: -p 30000
+    depends_on:
+      - ublog
 networks:
   hostnet:
     external: true
