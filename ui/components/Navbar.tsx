@@ -12,7 +12,7 @@ export default function Navbar(): JSX.Element {
   const owner = getConfig().publicRuntimeConfig.owner;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 bg-gray-100/60 dark:bg-gray-800/60 backdrop-blur-sm h-20">
+    <nav className="fixed top-0 left-0 right-0 bg-gray-100/60 dark:bg-gray-800/60 backdrop-blur-sm h-20 z-50">
       <AutoFluid>
         <div className="flex justify-center sm:justify-around items-center h-20">
           <Link href="/">

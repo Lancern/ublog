@@ -6,22 +6,25 @@ services:
     volumes:
       - type: bind
         source: /path/to/sslcert.pem
-        target: /ublog-site/sslcert.pem
+        target: ./sslcert.pem
       - type: bind
         source: /path/to/sslcert.key
-        target: /ublog-site/sslcert.key
+        target: ./sslcert.key
   server:
     build: ./
     volumes:
       - type: bind
         source: /path/to/ublog.db
-        target: /ublog-site/ublog.db
+        target: ./ublog.db
       - type: bind
         source: /path/to/site.json
-        target: /ublog-site/site.json
-    command: serve -p 30000 -l logs
+        target: ./site.json
+    command: serve
   ui:
     build: ./ui
-    command: -p 30000
     depends_on:
       - server
+    environment:
+      SITE_OWNER: Lancern
+      SSR_DATA_URL: http://server:8000
+      CSR_DATA_URL: https://lancern.xyz

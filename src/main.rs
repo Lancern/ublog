@@ -97,6 +97,6 @@ struct ServerArgs {
     debug: bool,
 
     /// Path to the log file directory.
-    #[structopt(short, long, default_value = "ublog.logs.d")]
+    #[structopt(short, long, default_value = "logs")]
     logs_dir: PathBuf,
 }

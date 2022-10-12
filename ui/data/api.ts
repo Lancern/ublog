@@ -38,9 +38,8 @@ async function getApi(path: string, queries?: object): Promise<Response> {
 
 function getApiUrl(path: string, queries?: object): URL {
   const { serverRuntimeConfig, publicRuntimeConfig } = getConfig();
-  const serverUrl = serverRuntimeConfig?.dataServerUrl ?? publicRuntimeConfig.dataServerUrl;
-
-  const url = new URL(path, serverUrl);
+  const dataServerUrl = serverRuntimeConfig?.dataServerUrl ?? publicRuntimeConfig.dataServerUrl;
+  const url = new URL(path, dataServerUrl);
 
   if (queries !== undefined) {
     for (const queryKey of Object.getOwnPropertyNames(queries)) {

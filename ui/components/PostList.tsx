@@ -40,7 +40,7 @@ function PostListItem({ post }: PostListItemProps): JSX.Element {
   }, [post.createTimestamp, post.updateTimestamp]);
 
   const tagsString = post.tags.map((t) => `#${t}`).join(", ");
-  const href = `/posts/${post.slug}`;
+  const href = `/posts/${encodeURIComponent(post.slug)}`;
   return (
     <div className="py-8">
       <article>

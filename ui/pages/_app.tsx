@@ -1,5 +1,6 @@
 import getConfig from "next/config";
 import Image from "next/image";
+import NextNProgress from "nextjs-progressbar";
 
 import AutoFluid from "../components/AutoFluid";
 import Navbar from "../components/Navbar";
@@ -11,6 +12,7 @@ export default function UblogApp({ Component, pageProps }) {
   return (
     <>
       <div className="dark:bg-slate-900">
+        <NextNProgress height={2} />
         <Navbar />
         <AutoFluid>
           <div className="mt-28 mb-8">
