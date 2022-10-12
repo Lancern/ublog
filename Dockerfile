@@ -3,8 +3,6 @@ FROM rust:1.64-buster
 WORKDIR /ublog
 COPY . .
 
-RUN mkdir -p $HOME/.cargo
-RUN cp ./ustc-cargo-mirror $HOME/.cargo/config
 RUN cargo install --path .
 
 WORKDIR /ublog-site
