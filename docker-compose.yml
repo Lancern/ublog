@@ -6,24 +6,30 @@ services:
     volumes:
       - type: bind
         source: /path/to/sslcert.pem
-        target: ./sslcert.pem
+        target: /ublog-site/sslcert.pem
       - type: bind
         source: /path/to/sslcert.key
-        target: ./sslcert.key
+        target: /ublog-site/sslcert.key
+    depends_on:
+      server:
+        condition: service_healthy
+      ui:
+        condition: service_healthy
   server:
     build: ./
     volumes:
       - type: bind
         source: /path/to/ublog.db
-        target: ./ublog.db
+        target: /ublog-site/ublog.db
       - type: bind
         source: /path/to/site.json
-        target: ./site.json
+        target: /ublog-site/site.json
     command: serve
   ui:
     build: ./ui
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     environment:
       SITE_OWNER: Lancern
       SSR_DATA_URL: http://server:8000
